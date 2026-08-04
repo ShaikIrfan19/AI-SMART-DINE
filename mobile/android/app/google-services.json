@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "290667202154",
+    "project_id": "aismartdine",
+    "storage_bucket": "aismartdine.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:290667202154:android:9a9e503f8b4f1f4f87ac13",
+        "android_client_info": {
+          "package_name": "com.aismartdine"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCKdt38HwL3En5Svmq2uIL8OQSxc0tap5c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

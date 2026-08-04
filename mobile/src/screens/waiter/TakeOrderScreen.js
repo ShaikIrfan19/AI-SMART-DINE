@@ -1,0 +1,177 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  TextInput, Alert, ActivityIndicator, FlatList,
+} from 'react-native';
+import { useSelector, useDispatch } from 'react-redux';
+import { addItem, clearCart, selectCartTotal, selectCartCount } from '../../store/cartSlice';
+import api from '../../services/api';
+import { colors, spacing, radius, shadows } from '../../theme';
+
+const CATEGORIES = ['all', 'starters', 'main_course', 'desserts', 'drinks', 'combos'];
+
+export default function TakeOrderScreen({ navigation, route }) {
+  const { table } = route.params || {};
+  const dispatch = useDispatch();
+  const { items: cartItems } = useSelector(s => s.cart);
+  const { user } = useSelector(s => s.auth);
+  const cartTotal = useSelector(selectCartTotal);
+  const cartCount = useSelector(selectCartCount);
+
+  const [menuItems, setMenuItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [category, setCategory] = useState('all');
+  const [search, setSearch] = useState('');
+  const [notes, setNotes] = useState('');
+  const [placing, setPlacing] = useState(false);
+
+  const restaurantId = user?.restaurantId?._id || user?.restaurantId;
+
+  useEffect(() => {
+    const fetch = async () => {
+      try {
+        const params = new URLSearchParams({ restaurantId, isAvailable: 'true' });
+        if (category !== 'all') params.set('category', category);
+        if (search) params.set('search', search);
+        const res = await api.get(`/menu?${params}`);
+        setMenuItems(res.data.data);
+      } catch {} finally { setLoading(false); }
+    };
+    fetch();
+  }, [category, search, restaurantId]);
+
+  const placeOrder = async () => {
+    if (cartItems.length === 0) return Alert.alert('Empty', 'Add items first');
+    if (!table?._id) return Alert.alert('Error', 'No table selected');
+    setPlacing(true);
+    try {
+      const res = await api.post('/orders', {
+        restaurantId,
+        tableId: table._id,
+        items: cartItems.map(i => ({ menuItemId: i.menuItemId, name: i.name, price: i.price, quantity: i.quantity, notes: i.notes })),
+        notes,
+        orderType: 'dine_in',
+      });
+      await api.patch(`/tables/${table._id}/status`, { status: 'occupied', customerCount: 1 });
+      dispatch(clearCart());
+      Alert.alert('✅ Order Placed!', `Order #${res.data.data.orderNumber} sent to kitchen`, [{ text: 'OK', onPress: () => navigation.goBack() }]);
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.message || 'Failed to place order');
+    } finally { setPlacing(false); }
+  };
+
+  const getQty = (id) => cartItems.find(i => i.menuItemId === id)?.quantity || 0;
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={{ fontSize: 22, color: colors.textPrimary }}>←</Text>
+        </TouchableOpacity>
+        <View>
+          <Text style={styles.headerTitle}>Take Order</Text>
+          {table && <Text style={styles.headerSub}>Table {table.tableNumber}</Text>}
+        </View>
+        <View style={{ alignItems: 'flex-end' }}>
+          <Text style={{ fontSize: 12, color: colors.textMuted }}>{cartCount} items</Text>
+          <Text style={{ fontSize: 15, fontWeight: '800', color: colors.green }}>₹{cartTotal.toFixed(0)}</Text>
+        </View>
+      </View>
+
+      {/* Search */}
+      <View style={styles.searchBar}>
+        <Text>🔍</Text>
+        <TextInput style={styles.searchInput} placeholder="Search menu..." placeholderTextColor={colors.textMuted} value={search} onChangeText={setSearch} />
+      </View>
+
+      {/* Category chips */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 48 }} contentContainerStyle={{ paddingHorizontal: spacing.md, gap: 8, alignItems: 'center' }}>
+        {CATEGORIES.map(c => (
+          <TouchableOpacity key={c} onPress={() => setCategory(c)}
+            style={{ paddingHorizontal: 14, paddingVertical: 7, borderRadius: 99, backgroundColor: category === c ? colors.green : colors.bgCard, borderWidth: 1, borderColor: category === c ? colors.green : colors.border }}>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: category === c ? '#000' : colors.textMuted, textTransform: 'capitalize' }}>{c.replace('_', ' ')}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      {/* Menu List */}
+      {loading ? (
+        <View style={styles.centered}><ActivityIndicator color={colors.green} /></View>
+      ) : (
+        <FlatList
+          data={menuItems}
+          keyExtractor={i => i._id}
+          contentContainerStyle={{ padding: spacing.md, paddingBottom: 120 }}
+          renderItem={({ item }) => {
+            const qty = getQty(item._id);
+            return (
+              <View style={styles.menuRow}>
+                <View style={styles.menuRowLeft}>
+                  <View style={styles.menuEmoji}>
+                    <Text style={{ fontSize: 24 }}>{item.isVeg ? '🥗' : '🍗'}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.menuName} numberOfLines={1}>{item.name}</Text>
+                    <Text style={styles.menuPrice}>₹{item.price}</Text>
+                  </View>
+                </View>
+                {qty === 0 ? (
+                  <TouchableOpacity style={styles.addBtn} onPress={() => dispatch(addItem({ menuItemId: item._id, name: item.name, price: item.price, isVeg: item.isVeg, quantity: 1 }))}>
+                    <Text style={styles.addBtnText}>+ Add</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.qtyRow}>
+                    <TouchableOpacity style={styles.qtyBtn} onPress={() => dispatch({ type: 'cart/updateQuantity', payload: { menuItemId: item._id, quantity: qty - 1 } })}>
+                      <Text style={styles.qtyBtnText}>−</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.qtyVal}>{qty}</Text>
+                    <TouchableOpacity style={[styles.qtyBtn, { backgroundColor: colors.green }]} onPress={() => dispatch(addItem({ menuItemId: item._id, name: item.name, price: item.price, isVeg: item.isVeg, quantity: 1 }))}>
+                      <Text style={[styles.qtyBtnText, { color: '#000' }]}>+</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            );
+          }}
+        />
+      )}
+
+      {/* Place Order Footer */}
+      {cartCount > 0 && (
+        <View style={styles.footer}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 12, color: colors.textMuted }}>{cartCount} items</Text>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: colors.green }}>₹{cartTotal.toFixed(0)}</Text>
+          </View>
+          <TouchableOpacity style={[styles.placeBtn, placing && { opacity: 0.7 }]} onPress={placeOrder} disabled={placing}>
+            {placing ? <ActivityIndicator color="#000" size="small" /> : <Text style={styles.placeBtnText}>Send to Kitchen →</Text>}
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.lg, paddingTop: 56, backgroundColor: colors.bgSecondary, borderBottomWidth: 1, borderBottomColor: colors.border },
+  headerTitle: { fontSize: 17, fontWeight: '800', color: colors.textPrimary, textAlign: 'center' },
+  headerSub: { fontSize: 12, color: colors.green, textAlign: 'center' },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 8, margin: spacing.md, backgroundColor: colors.bgCard, borderRadius: radius.md, paddingHorizontal: spacing.md, borderWidth: 1, borderColor: colors.border },
+  searchInput: { flex: 1, paddingVertical: 11, color: colors.textPrimary, fontSize: 14 },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  menuRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
+  menuRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  menuEmoji: { width: 44, height: 44, backgroundColor: colors.bgSecondary, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  menuName: { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
+  menuPrice: { fontSize: 13, fontWeight: '700', color: colors.green, marginTop: 2 },
+  addBtn: { backgroundColor: colors.green, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7, flexShrink: 0 },
+  addBtnText: { fontSize: 13, fontWeight: '800', color: '#000' },
+  qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 },
+  qtyBtn: { width: 28, height: 28, borderRadius: 7, backgroundColor: colors.bgSecondary, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  qtyBtnText: { fontSize: 16, color: colors.textPrimary, lineHeight: 20 },
+  qtyVal: { fontSize: 14, fontWeight: '800', color: colors.textPrimary, minWidth: 20, textAlign: 'center' },
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', padding: spacing.lg, backgroundColor: colors.bgSecondary, borderTopWidth: 1, borderTopColor: colors.border, gap: 16 },
+  placeBtn: { backgroundColor: colors.green, borderRadius: radius.md, paddingHorizontal: 20, paddingVertical: 14, ...shadows.green },
+  placeBtnText: { fontSize: 14, fontWeight: '800', color: '#000' },
+});
