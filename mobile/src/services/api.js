@@ -1,7 +1,7 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const BASE_URL = process.env.API_URL || 'http://10.0.2.2:5000/api'; // 10.0.2.2 = localhost for Android emulator
+const BASE_URL = process.env.API_URL || 'https://ai-smart-dine-backend.onrender.com/api';
 
 const api = axios.create({
   baseURL: BASE_URL,

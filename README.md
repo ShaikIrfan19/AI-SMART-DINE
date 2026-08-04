@@ -8,11 +8,13 @@
 
 ```
 ai-smart-dine/
-├── web-dashboard/        # React.js + Tailwind CSS Web Dashboard
-├── backend/              # Node.js + Express.js REST API
-├── mobile/               # React Native Mobile App (Android + iOS)
+├── web-dashboard/        # React.js Web Dashboard (connects to shared Render Backend)
+├── backend/              # Node.js + Express.js REST API + MongoDB Database
+├── mobile/               # React Native Mobile App (connects to shared Render Backend)
 └── docs/                 # API Documentation & Guides
 ```
+
+> **Unified Backend & Shared Database**: Both the Web Dashboard and Mobile App connect to the same central Node.js REST API (`https://ai-smart-dine-backend.onrender.com/api`) and WebSocket server (`https://ai-smart-dine-backend.onrender.com`), sharing the exact same MongoDB database state in real-time.
 
 ---
 
