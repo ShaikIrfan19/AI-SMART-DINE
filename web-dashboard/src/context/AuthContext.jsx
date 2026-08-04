@@ -17,14 +17,21 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     try {
       const res = await loginApi({ email, password });
-      const { token: t, user: u } = res.data;
+      const payload = res.data?.data || res.data;
+      const t = payload?.token || res.data?.token;
+      const u = payload?.user || res.data?.user;
+
+      if (!t || !u) {
+        return { success: false, error: res.data?.message || 'Login response missing authentication details' };
+      }
+
       localStorage.setItem('token', t);
       localStorage.setItem('user', JSON.stringify(u));
       setToken(t);
       setUser(u);
       return { success: true, user: u };
     } catch (err) {
-      const msg = err.response?.data?.message || 'Login failed';
+      const msg = err.response?.data?.message || err.message || 'Login failed. Please check your credentials.';
       return { success: false, error: msg };
     } finally {
       setLoading(false);

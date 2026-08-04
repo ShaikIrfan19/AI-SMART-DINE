@@ -45,6 +45,18 @@ mongoose.connect(process.env.MONGODB_URI, { family: 4 })
   .then(() => console.log('✅ MongoDB connected successfully'))
   .catch((err) => console.error('❌ MongoDB connection error:', err));
 
+// DB Connection Check Middleware
+app.use('/api', (req, res, next) => {
+  if (req.path === '/health') return next();
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({
+      success: false,
+      message: 'Database connection is currently initializing or unavailable. Please check your MongoDB URI or try again in a few seconds.',
+    });
+  }
+  next();
+});
+
 // Routes
 app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/users', require('./routes/user.routes'));
