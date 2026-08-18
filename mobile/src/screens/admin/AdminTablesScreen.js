@@ -388,7 +388,7 @@ export function AdminStaffScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm]       = useState({ name: '', email: '', phone: '', password: '' });
+  const [form, setForm]       = useState({ name: '', email: '', password: '' });
 
   const fetchStaff = async () => {
     try {
@@ -521,7 +521,6 @@ export function AdminStaffScreen() {
             {[
               { label: 'Full Name', key: 'name', placeholder: 'John Doe', secure: false },
               { label: 'Email', key: 'email', placeholder: 'waiter@test.com', secure: false },
-              { label: 'Phone', key: 'phone', placeholder: '+91', secure: false },
               { label: 'Password', key: 'password', placeholder: 'Secret password', secure: true },
             ].map(f => (
               <View key={f.key} style={{ marginBottom: 12 }}>
