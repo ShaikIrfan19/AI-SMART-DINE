@@ -33,7 +33,9 @@ const userSchema = new mongoose.Schema({
 
 // Hash password before saving
 userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
+  if (!this.isModified('password') || !this.password) return next();
+  // Don't re-hash if password is already a bcrypt hash (starts with $2a$, $2b$, etc.)
+  if (/^\$2[abxy]\$\d+\$/.test(this.password)) return next();
   this.password = await bcrypt.hash(this.password, 12);
   next();
 });

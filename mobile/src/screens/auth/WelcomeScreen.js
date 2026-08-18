@@ -55,7 +55,7 @@ export function LoginScreen({ navigation }) {
     if (!email || !password) return Alert.alert('Error', 'Please enter email and password');
     setLoading(true);
     try {
-      const res = await api.post('/auth/login', { email, password });
+      const res = await api.post('/auth/login', { email: email.trim().toLowerCase(), password: password.trim() });
       const { token, user } = res.data.data;
       await AsyncStorage.setItem('asd_token', token);
       await AsyncStorage.setItem('asd_user', JSON.stringify(user));

@@ -9,8 +9,11 @@ const generateRefreshToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { 
 const register = async (req, res) => {
   try {
     const { name, email, phone, password, role } = req.body;
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanPassword = (password || '').trim();
+    const cleanName = (name || '').trim();
 
-    if (await User.findOne({ email })) {
+    if (await User.findOne({ email: cleanEmail })) {
       return res.status(400).json({ success: false, message: 'Email already registered.' });
     }
 
@@ -20,7 +23,7 @@ const register = async (req, res) => {
     // Waiters start as inactive (pending Admin approval)
     const isActive = userRole === 'waiter' ? false : true;
 
-    const user = await User.create({ name, email, phone, password, role: userRole, isActive });
+    const user = await User.create({ name: cleanName, email: cleanEmail, phone: phone?.trim(), password: cleanPassword, role: userRole, isActive });
 
     const otp = user.generateOTP();
     await user.save();
@@ -53,8 +56,11 @@ const login = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email and password are required.' });
     }
 
-    const user = await User.findOne({ email });
-    if (!user || !(await user.comparePassword(password))) {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password.trim();
+
+    const user = await User.findOne({ email: cleanEmail });
+    if (!user || !(await user.comparePassword(cleanPassword))) {
       return res.status(401).json({ success: false, message: 'Invalid email or password.' });
     }
 
@@ -63,8 +69,7 @@ const login = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Your account has been deactivated.' });
     }
 
-    user.lastLogin = new Date();
-    await user.save();
+    await User.updateOne({ _id: user._id }, { $set: { lastLogin: new Date() } });
 
     const token = generateToken(user._id);
     const refreshToken = generateRefreshToken(user._id);
