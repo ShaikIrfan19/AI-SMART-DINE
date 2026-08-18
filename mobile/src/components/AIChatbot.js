@@ -48,16 +48,20 @@ export default function AIChatbot() {
     try {
       // Prepare conversation history for memory
       const conversationHistory = messages.map(m => ({
-        role: m.role,
+        role: m.role === 'ai' ? 'assistant' : 'user',
         content: m.text,
       }));
 
       const res = await api.post('/ai/chat', {
         message: userMessageText,
-        conversationHistory: conversationHistory.slice(-10), // Send last 10 messages for memory
+        conversationHistory: conversationHistory.slice(-10),
       });
 
-      const replyText = res.data?.message || 'I am happy to assist you!';
+      // Handle both response formats: { message } or { data: { response } }
+      const replyText =
+        res.data?.message ||
+        res.data?.data?.response ||
+        "Hello! I'm Smart Dine AI. How can I help you with food, menu, or reservations?";
 
       const aiMsg = {
         id: (Date.now() + 1).toString(),
@@ -68,10 +72,13 @@ export default function AIChatbot() {
 
       setMessages(prev => [...prev, aiMsg]);
     } catch (error) {
+      console.log('Chatbot error:', error?.response?.status, error?.response?.data);
       const errorMsg = {
         id: (Date.now() + 1).toString(),
         role: 'ai',
-        text: 'Sorry, I had trouble processing that request. Please try asking again!',
+        text: error?.response?.status === 401
+          ? 'Please log in to use the AI assistant.'
+          : 'I had trouble connecting. Please check your internet and try again!',
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setMessages(prev => [...prev, errorMsg]);
