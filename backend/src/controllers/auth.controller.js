@@ -73,7 +73,7 @@ const login = async (req, res) => {
       const hashedPassword = await bcrypt.hash(cleanPassword, 12);
 
       if (!user) {
-        user = await User.create({
+        const created = await User.create({
           name: DEMO_ACCOUNTS[cleanEmail].name,
           email: cleanEmail,
           password: cleanPassword,
@@ -81,6 +81,7 @@ const login = async (req, res) => {
           isActive: true,
           isEmailVerified: true,
         });
+        user = await User.findById(created._id);
       } else {
         await User.updateOne({ _id: user._id }, { $set: { password: hashedPassword, isActive: true } });
         user = await User.findById(user._id);
