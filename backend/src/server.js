@@ -22,19 +22,12 @@ const io = socketIO(server, {
 app.set('io', io);
 
 // Security Middleware
-app.use(helmet());
+// CORS & Security
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({
   origin: process.env.FRONTEND_URL || '*',
   credentials: true,
 }));
-
-// Rate limiting (generous limit for live polling mobile app)
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10000, // 10,000 requests per 15 mins to accommodate live polling
-  message: 'Too many requests from this IP, please try again later.',
-});
-app.use('/api/', limiter);
 
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
