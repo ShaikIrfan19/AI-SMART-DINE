@@ -50,44 +50,91 @@ const getFoodRecommendations = async (req, res) => {
   }
 };
 
-// @POST /api/ai/chatbot
+// @POST /api/ai/chat
 const chatWithAI = async (req, res) => {
   try {
-    const { message, restaurantId, conversationHistory } = req.body;
+    const { message, conversationHistory } = req.body;
+    if (!message) return res.status(400).json({ success: false, message: 'Message is required' });
 
-    const menuItems = await MenuItem.find({ restaurantId, isAvailable: true })
-      .select('name category price isVeg description rating')
-      .limit(20);
+    const systemPrompt = `You are "Smart Dine AI", a friendly restaurant assistant for AI Smart Dine application.
+You answer questions about food, menu items, restaurant details, food recommendations, prices, reservations, orders, bills, and general restaurant questions.
+Always use ₹ (Indian Rupees) whenever discussing prices.
+Be helpful, friendly, and concise. Maintain context of previous conversation.`;
 
-    const tables = await Table.find({ restaurantId, status: 'available' });
+    let replyText = '';
 
-    const systemContext = `You are "Dine AI", a helpful restaurant assistant for AI Smart Dine. 
-    
-    Available menu (sample): ${JSON.stringify(menuItems.slice(0, 10).map(m => ({ name: m.name, price: '₹' + m.price, isVeg: m.isVeg, category: m.category })))}
-    Available tables: ${tables.length} tables currently free
-    
-    Be helpful, friendly, and concise. If asked about unavailable items, suggest alternatives.
-    Always mention prices in ₹ INR. Keep responses under 100 words.`;
+    // Primary: Try OpenAI API if OPENAI_API_KEY is configured
+    if (process.env.OPENAI_API_KEY) {
+      try {
+        const OpenAI = require('openai');
+        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-    const history = (conversationHistory || []).map(h => ({
-      role: h.role === 'model' ? 'assistant' : 'user',
-      content: h.text,
-    }));
+        const messages = [
+          { role: 'system', content: systemPrompt },
+        ];
 
-    const completion = await groq.chat.completions.create({
-      messages: [
-        { role: 'system', content: systemContext },
-        { role: 'assistant', content: 'Understood! I am Dine AI, ready to help.' },
-        ...history,
-        { role: 'user', content: message }
-      ],
-      model: MODEL,
+        if (Array.isArray(conversationHistory)) {
+          conversationHistory.forEach(h => {
+            if (h.role && h.content) {
+              messages.push({ role: h.role === 'ai' ? 'assistant' : h.role, content: h.content });
+            }
+          });
+        }
+
+        messages.push({ role: 'user', content: message });
+
+        const completion = await openai.chat.completions.create({
+          model: 'gpt-3.5-turbo',
+          messages: messages,
+          max_tokens: 250,
+          temperature: 0.7,
+        });
+
+        replyText = completion.choices[0]?.message?.content;
+      } catch (err) {
+        console.error('OpenAI API call failed, falling back to Groq:', err.message);
+      }
+    }
+
+    // Secondary / Fallback: Groq SDK
+    if (!replyText && process.env.GROQ_API_KEY) {
+      try {
+        const messages = [
+          { role: 'system', content: systemPrompt },
+        ];
+
+        if (Array.isArray(conversationHistory)) {
+          conversationHistory.forEach(h => {
+            if (h.role && h.content) {
+              messages.push({ role: h.role === 'model' || h.role === 'ai' ? 'assistant' : h.role, content: h.content });
+            }
+          });
+        }
+
+        messages.push({ role: 'user', content: message });
+
+        const completion = await groq.chat.completions.create({
+          messages: messages,
+          model: MODEL,
+        });
+
+        replyText = completion.choices[0]?.message?.content;
+      } catch (err) {
+        console.error('Groq API call failed:', err.message);
+      }
+    }
+
+    // Default friendly response if no API keys are present or calls fail
+    if (!replyText) {
+      replyText = "Hello! I am Smart Dine AI, your restaurant assistant. What type of food or recommendation are you looking for today?";
+    }
+
+    res.json({
+      success: true,
+      message: replyText
     });
-
-    const response = completion.choices[0]?.message?.content || 'I am sorry, I am having trouble understanding that right now.';
-    res.json({ success: true, data: { response, timestamp: new Date() } });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Chatbot temporarily unavailable' });
+    res.status(500).json({ success: false, message: 'I am having trouble processing that request right now. Please try again!' });
   }
 };
 

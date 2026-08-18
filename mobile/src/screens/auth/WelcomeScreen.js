@@ -14,23 +14,22 @@ export function WelcomeScreen({ navigation }) {
       <View style={styles.topSection}>
         <View style={styles.glow1} /><View style={styles.glow2} />
         <View style={styles.logoContainer}>
-          <Image source={LOGO} style={{ width: 72, height: 72, borderRadius: 18 }} resizeMode="contain" />
+          <Text style={styles.logoEmoji}>🍽️</Text>
         </View>
         <Text style={styles.appName}>AI Smart Dine</Text>
         <Text style={styles.tagline}>The smartest way to manage your restaurant</Text>
-        <View style={styles.features}>
-          {['🤖 AI-Powered Recommendations', '📊 Real-Time Analytics', '💳 Smart Billing & Payments', '🪑 Live Table Management'].map(f => (
-            <View key={f} style={styles.featureRow}><Text style={styles.featureText}>{f}</Text></View>
-          ))}
+
+        {/* Centered Buttons */}
+        <View style={styles.centerButtons}>
+          <TouchableOpacity style={styles.btnPrimary} onPress={() => navigation.navigate('Login')} activeOpacity={0.85}>
+            <Text style={styles.btnPrimaryText}>Get Started →</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.btnSecondary} onPress={() => navigation.navigate('Register')} activeOpacity={0.85}>
+            <Text style={styles.btnSecondaryText}>Create New Account</Text>
+          </TouchableOpacity>
         </View>
       </View>
       <View style={styles.bottomSection}>
-        <TouchableOpacity style={styles.btnPrimary} onPress={() => navigation.navigate('Login')} activeOpacity={0.85}>
-          <Text style={styles.btnPrimaryText}>Get Started →</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.btnSecondary} onPress={() => navigation.navigate('Register')} activeOpacity={0.85}>
-          <Text style={styles.btnSecondaryText}>Create New Account</Text>
-        </TouchableOpacity>
         <Text style={styles.terms}>By continuing, you agree to our Terms of Service & Privacy Policy</Text>
       </View>
     </View>
@@ -261,7 +260,8 @@ const styles = StyleSheet.create({
   logoContainer: { width: 88, height: 88, borderRadius: 22, backgroundColor: colors.green, alignItems: 'center', justifyContent: 'center', marginBottom: 24, shadowColor: colors.green, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 20, elevation: 12 },
   logoEmoji: { fontSize: 44 },
   appName: { fontSize: 32, fontWeight: '800', color: colors.textPrimary, letterSpacing: -0.5, marginBottom: 8 },
-  tagline: { fontSize: 14, color: colors.textMuted, textAlign: 'center', marginBottom: 32 },
+  tagline: { fontSize: 14, color: colors.textMuted, textAlign: 'center', marginBottom: 28 },
+  centerButtons: { width: '100%', gap: 12, marginTop: 10 },
   features: { gap: 10, width: '100%' },
   featureRow: { backgroundColor: colors.bgCard, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: colors.border },
   featureText: { fontSize: 13, color: colors.textSecondary, fontWeight: '500' },
