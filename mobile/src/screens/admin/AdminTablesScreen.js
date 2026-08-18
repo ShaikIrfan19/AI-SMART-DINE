@@ -26,10 +26,10 @@ export function AdminTablesScreen() {
   const restaurantId = user?.restaurantId?._id || user?.restaurantId || user?.id;
 
   const fetchTables = useCallback(async () => {
-    if (!restaurantId) return setLoading(false);
     try {
-      const res = await api.get(`/tables?restaurantId=${restaurantId}`);
-      setTables(res.data.data);
+      const url = restaurantId ? `/tables?restaurantId=${restaurantId}` : '/tables';
+      const res = await api.get(url);
+      setTables(res.data.data || []);
     } catch {} finally { setLoading(false); setRefreshing(false); }
   }, [restaurantId]);
 
@@ -169,32 +169,34 @@ export function AdminMenuScreen() {
   const { user } = useSelector(s => s.auth);
   const [items, setItems]       = useState([]);
   const [loading, setLoading]   = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [category, setCategory] = useState('all');
   const [showAdd, setShowAdd]   = useState(false);
-  const [form, setForm]         = useState({ name: '', price: '', category: 'starters', description: '' });
+  const [form, setForm]         = useState({ name: '', price: '', category: 'starters', description: '', isVeg: true });
 
   const restaurantId = user?.restaurantId?._id || user?.restaurantId || user?.id;
   const CATS = ['all','starters','main_course','desserts','drinks','combos','snacks'];
 
-  useEffect(() => {
-    const fetch = async () => {
-      try {
-        const params = new URLSearchParams({ restaurantId });
-        if (category !== 'all') params.set('category', category);
-        const res = await api.get(`/menu?${params}`);
-        setItems(res.data.data);
-      } catch {} finally { setLoading(false); }
-    };
-    fetch();
+  const fetchMenu = useCallback(async () => {
+    try {
+      const params = new URLSearchParams({});
+      if (restaurantId) params.set('restaurantId', restaurantId);
+      if (category !== 'all') params.set('category', category);
+      const res = await api.get(`/menu?${params}`);
+      setItems(res.data.data || []);
+    } catch {} finally { setLoading(false); setRefreshing(false); }
   }, [category, restaurantId]);
+
+  useEffect(() => {
+    fetchMenu();
+  }, [fetchMenu]);
 
   const addItem = async () => {
     if (!form.name || !form.price) return Alert.alert('Error', 'Name and price are required');
-    // Map common typos to valid categories
     let finalCategory = form.category.toLowerCase().replace(/ /g, '_');
     if (finalCategory === 'main') finalCategory = 'main_course';
     if (!CATS.includes(finalCategory) && finalCategory !== 'all') {
-      finalCategory = 'starters'; // fallback
+      finalCategory = 'starters';
     }
 
     try {
@@ -204,27 +206,30 @@ export function AdminMenuScreen() {
         price: Number(form.price),
         category: finalCategory,
         description: form.description,
+        isVeg: form.isVeg,
       });
       setItems(prev => [res.data.data, ...prev]);
       setShowAdd(false);
-      setForm({ name: '', price: '', category: 'starters', description: '' });
+      setForm({ name: '', price: '', category: 'starters', description: '', isVeg: true });
       Alert.alert('✅ Success', 'Item added successfully');
-    } catch (err) { Alert.alert('Error', err.response?.data?.message || 'Failed'); }
+    } catch (err) { Alert.alert('Error', err.response?.data?.message || 'Failed to add item'); }
   };
 
   const toggleAvailability = async (id, current) => {
     try {
       await api.patch(`/menu/${id}/availability`);
       setItems(prev => prev.map(i => i._id === id ? { ...i, isAvailable: !current } : i));
-    } catch { Alert.alert('Error', 'Failed to update'); }
+    } catch { Alert.alert('Error', 'Failed to update availability'); }
   };
 
   const deleteItem = async (id) => {
-    Alert.alert('Delete Dish', 'Are you sure?', [
-      { text: 'Cancel' },
+    Alert.alert('Delete Dish', 'Are you sure you want to delete this menu item?', [
+      { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
-        await api.delete(`/menu/${id}`);
-        setItems(prev => prev.filter(i => i._id !== id));
+        try {
+          await api.delete(`/menu/${id}`);
+          setItems(prev => prev.filter(i => i._id !== id));
+        } catch { Alert.alert('Error', 'Failed to delete item'); }
       }},
     ]);
   };
@@ -232,7 +237,7 @@ export function AdminMenuScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Menu ({items.length})</Text>
+        <Text style={styles.headerTitle}>Menu Management ({items.length})</Text>
         <TouchableOpacity style={styles.addBtn} onPress={() => setShowAdd(true)}>
           <Text style={styles.addBtnText}>+ Add Item</Text>
         </TouchableOpacity>
@@ -258,6 +263,7 @@ export function AdminMenuScreen() {
           data={items}
           keyExtractor={i => i._id}
           contentContainerStyle={{ padding: spacing.md, paddingBottom: 24 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchMenu(); }} tintColor={colors.green} />}
           renderItem={({ item }) => (
             <View style={[styles.menuCard, !item.isAvailable && { opacity: 0.55 }]}>
               <View style={styles.menuEmoji}>
@@ -265,7 +271,7 @@ export function AdminMenuScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.menuName} numberOfLines={1}>{item.name}</Text>
-                <Text style={styles.menuCat}>{item.category?.replace('_', ' ')}</Text>
+                <Text style={styles.menuCat}>{item.category?.replace('_', ' ')} • {item.isVeg ? 'Veg' : 'Non-Veg'}</Text>
                 <View style={{ flexDirection: 'row', gap: 8, marginTop: 2 }}>
                   <Text style={styles.menuPrice}>₹{item.price}</Text>
                   {item.isPopular && <Text style={{ fontSize: 11, color: colors.amber }}>🔥 Popular</Text>}
@@ -274,12 +280,12 @@ export function AdminMenuScreen() {
               <View style={styles.menuActions}>
                 <TouchableOpacity onPress={() => toggleAvailability(item._id, item.isAvailable)}
                   style={[styles.availBtn, { backgroundColor: item.isAvailable ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)' }]}>
-                  <Text style={{ fontSize: 10, fontWeight: '700', color: item.isAvailable ? colors.green : colors.red }}>
-                    {item.isAvailable ? 'ON' : 'OFF'}
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: item.isAvailable ? colors.green : colors.red }}>
+                    {item.isAvailable ? 'AVAILABLE' : 'OFF'}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => deleteItem(item._id)} style={styles.delBtn}>
-                  <Text style={{ fontSize: 14 }}>🗑</Text>
+                  <Text style={{ fontSize: 16 }}>🗑</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -292,24 +298,78 @@ export function AdminMenuScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modal}>
             <Text style={styles.modalTitle}>Add New Menu Item</Text>
-            {[
-              { label: 'Item Name', key: 'name', placeholder: 'e.g. Garlic Bread', kbType: 'default' },
-              { label: 'Price', key: 'price', placeholder: '150', kbType: 'numeric' },
-              { label: 'Category', key: 'category', placeholder: 'starters, main_course, etc.', kbType: 'default' },
-              { label: 'Description', key: 'description', placeholder: 'Item description...', kbType: 'default' },
-            ].map(f => (
-              <View key={f.key} style={{ marginBottom: 12 }}>
-                <Text style={styles.inputLabel}>{f.label}</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder={f.placeholder}
-                  placeholderTextColor={colors.textMuted}
-                  value={form[f.key]}
-                  onChangeText={v => setForm(prev => ({ ...prev, [f.key]: v }))}
-                  keyboardType={f.kbType}
-                />
+            
+            <View style={{ marginBottom: 12 }}>
+              <Text style={styles.inputLabel}>Item Name</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. Butter Chicken"
+                placeholderTextColor={colors.textMuted}
+                value={form.name}
+                onChangeText={v => setForm(prev => ({ ...prev, name: v }))}
+              />
+            </View>
+
+            <View style={{ marginBottom: 12 }}>
+              <Text style={styles.inputLabel}>Price (₹)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. 290"
+                placeholderTextColor={colors.textMuted}
+                value={form.price}
+                onChangeText={v => setForm(prev => ({ ...prev, price: v }))}
+                keyboardType="numeric"
+              />
+            </View>
+
+            {/* Food Type (Veg / Non-Veg) */}
+            <View style={{ marginBottom: 12 }}>
+              <Text style={styles.inputLabel}>Dietary Type</Text>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity
+                  onPress={() => setForm(prev => ({ ...prev, isVeg: true }))}
+                  style={[{ flex: 1, padding: 10, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, alignItems: 'center' }, form.isVeg && { backgroundColor: 'rgba(16,185,129,0.2)', borderColor: colors.green }]}
+                >
+                  <Text style={{ fontWeight: '800', color: form.isVeg ? colors.green : colors.textMuted }}>🥗 Vegetarian</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setForm(prev => ({ ...prev, isVeg: false }))}
+                  style={[{ flex: 1, padding: 10, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, alignItems: 'center' }, !form.isVeg && { backgroundColor: 'rgba(239,68,68,0.2)', borderColor: colors.red }]}
+                >
+                  <Text style={{ fontWeight: '800', color: !form.isVeg ? colors.red : colors.textMuted }}>🍗 Non-Veg</Text>
+                </TouchableOpacity>
               </View>
-            ))}
+            </View>
+
+            {/* Category Selector Chips */}
+            <View style={{ marginBottom: 12 }}>
+              <Text style={styles.inputLabel}>Category</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {['starters', 'main_course', 'desserts', 'drinks', 'combos', 'snacks'].map(cat => (
+                  <TouchableOpacity
+                    key={cat}
+                    onPress={() => setForm(prev => ({ ...prev, category: cat }))}
+                    style={[{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgSecondary }, form.category === cat && { backgroundColor: colors.green, borderColor: colors.green }]}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: form.category === cat ? '#000' : colors.textMuted }}>
+                      {cat.replace('_', ' ').toUpperCase()}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={{ marginBottom: 12 }}>
+              <Text style={styles.inputLabel}>Description (Optional)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Delicious chef special dish..."
+                placeholderTextColor={colors.textMuted}
+                value={form.description}
+                onChangeText={v => setForm(prev => ({ ...prev, description: v }))}
+              />
+            </View>
+
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
               <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setShowAdd(false)}>
                 <Text style={styles.modalCancelText}>Cancel</Text>
@@ -330,46 +390,113 @@ export function AdminOrdersScreen() {
   const { user } = useSelector(s => s.auth);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [filter, setFilter] = useState('all');
 
-  useEffect(() => {
-    const rid = user?.restaurantId?._id || user?.restaurantId;
-    api.get(`/orders?restaurantId=${rid}&limit=50`)
-      .then(r => setOrders(r.data.data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+  const fetchOrders = useCallback(async () => {
+    try {
+      const rid = user?.restaurantId?._id || user?.restaurantId || user?.id;
+      const url = rid ? `/orders?restaurantId=${rid}&limit=50` : '/orders?limit=50';
+      const res = await api.get(url);
+      setOrders(res.data.data || []);
+    } catch {} finally { setLoading(false); setRefreshing(false); }
   }, [user]);
 
+  useEffect(() => {
+    fetchOrders();
+    const timer = setInterval(fetchOrders, 8000); // Live poll orders every 8s
+    return () => clearInterval(timer);
+  }, [fetchOrders]);
+
   const updateStatus = async (id, status) => {
-    await api.patch(`/orders/${id}/status`, { status });
-    setOrders(prev => prev.map(o => o._id === id ? { ...o, status } : o));
+    try {
+      await api.patch(`/orders/${id}/status`, { status });
+      setOrders(prev => prev.map(o => o._id === id ? { ...o, status } : o));
+    } catch { Alert.alert('Error', 'Failed to update order status'); }
   };
 
   const SCOL = { pending: colors.amber, confirmed: colors.blue, preparing: colors.purple, ready: colors.green, served: '#06b6d4', completed: '#22c55e', cancelled: colors.red };
 
+  const filteredOrders = orders.filter(o => {
+    if (filter === 'active') return ['pending', 'confirmed', 'preparing', 'ready', 'served'].includes(o.status);
+    if (filter === 'completed') return o.status === 'completed';
+    if (filter === 'cancelled') return o.status === 'cancelled';
+    return true;
+  });
+
   return (
     <View style={styles.container}>
-      <View style={styles.header}><Text style={styles.headerTitle}>All Orders</Text></View>
-      {loading ? <View style={styles.centered}><ActivityIndicator color={colors.green} /></View> : (
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>All Orders ({filteredOrders.length})</Text>
+      </View>
+
+      {/* Filter Tabs */}
+      <View style={{ flexDirection: 'row', paddingHorizontal: spacing.md, gap: 6, marginVertical: 8 }}>
+        {[
+          { key: 'all', label: 'All' },
+          { key: 'active', label: '🔴 Live' },
+          { key: 'completed', label: '✅ Done' },
+          { key: 'cancelled', label: '❌ Cancelled' },
+        ].map(f => (
+          <TouchableOpacity
+            key={f.key}
+            onPress={() => setFilter(f.key)}
+            style={[{ flex: 1, paddingVertical: 7, borderRadius: 8, backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border, alignItems: 'center' }, filter === f.key && { backgroundColor: colors.green, borderColor: colors.green }]}
+          >
+            <Text style={{ fontSize: 11, fontWeight: '700', color: filter === f.key ? '#000' : colors.textMuted }}>{f.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {loading ? <View style={styles.centered}><ActivityIndicator color={colors.green} /></View> : filteredOrders.length === 0 ? (
+        <View style={styles.centered}>
+          <Text style={{ fontSize: 44, marginBottom: 8 }}>📋</Text>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: colors.textPrimary }}>No orders found</Text>
+        </View>
+      ) : (
         <FlatList
-          data={orders}
+          data={filteredOrders}
           keyExtractor={o => o._id}
           contentContainerStyle={{ padding: spacing.md, paddingBottom: 24 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchOrders(); }} tintColor={colors.green} />}
           renderItem={({ item: o }) => (
             <View style={[styles.orderCard, { borderLeftColor: SCOL[o.status] || '#888', borderLeftWidth: 3 }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
                 <Text style={{ fontWeight: '800', fontSize: 14, color: colors.textPrimary }}>#{o.orderNumber}</Text>
-                <Text style={{ fontSize: 11, fontWeight: '700', color: SCOL[o.status], textTransform: 'capitalize' }}>{o.status}</Text>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: SCOL[o.status], textTransform: 'uppercase' }}>{o.status}</Text>
               </View>
-              <Text style={{ fontSize: 12, color: colors.textMuted, marginBottom: 8 }}>
-                Table {o.tableId?.tableNumber || o.tableNumber} • {o.items?.length} items
+              
+              <Text style={{ fontSize: 12, color: colors.textMuted, marginBottom: 6 }}>
+                Table {o.tableId?.tableNumber || o.tableNumber || 'N/A'} • {o.items?.length || 0} items
               </Text>
+
+              {/* Items Summary */}
+              {o.items?.length > 0 && (
+                <View style={{ backgroundColor: colors.bgSecondary, borderRadius: radius.sm, padding: 8, marginBottom: 10, gap: 2 }}>
+                  {o.items.slice(0, 3).map((item, idx) => (
+                    <Text key={idx} style={{ fontSize: 12, color: colors.textSecondary }}>
+                      {item.isVeg ? '🟢' : '🔴'} {item.name} × {item.quantity}
+                    </Text>
+                  ))}
+                  {o.items.length > 3 && (
+                    <Text style={{ fontSize: 10, color: colors.textMuted, fontStyle: 'italic' }}>+{o.items.length - 3} more items...</Text>
+                  )}
+                </View>
+              )}
+
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text style={{ fontSize: 16, fontWeight: '800', color: colors.green }}>₹{o.totalAmount?.toFixed(0)}</Text>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
+                <Text style={{ fontSize: 16, fontWeight: '800', color: colors.green }}>₹{o.totalAmount?.toFixed(0) || 0}</Text>
+                <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                   {o.status === 'pending' && <TouchableOpacity style={styles.actionMiniBtn} onPress={() => updateStatus(o._id, 'confirmed')}><Text style={styles.actionMiniText}>Confirm</Text></TouchableOpacity>}
                   {o.status === 'confirmed' && <TouchableOpacity style={styles.actionMiniBtn} onPress={() => updateStatus(o._id, 'preparing')}><Text style={styles.actionMiniText}>Prepare</Text></TouchableOpacity>}
                   {o.status === 'preparing' && <TouchableOpacity style={styles.actionMiniBtn} onPress={() => updateStatus(o._id, 'ready')}><Text style={styles.actionMiniText}>Ready ✓</Text></TouchableOpacity>}
                   {o.status === 'ready' && <TouchableOpacity style={styles.actionMiniBtn} onPress={() => updateStatus(o._id, 'served')}><Text style={styles.actionMiniText}>Served</Text></TouchableOpacity>}
+                  {o.status === 'served' && <TouchableOpacity style={[styles.actionMiniBtn, { backgroundColor: colors.green }]} onPress={() => updateStatus(o._id, 'completed')}><Text style={styles.actionMiniText}>Complete 💰</Text></TouchableOpacity>}
+                  {o.status !== 'completed' && o.status !== 'cancelled' && (
+                    <TouchableOpacity style={[styles.actionMiniBtn, { backgroundColor: 'rgba(239,68,68,0.15)', borderWidth: 1, borderColor: colors.red }]} onPress={() => Alert.alert('Cancel Order', 'Cancel this order?', [{ text: 'No' }, { text: 'Yes', onPress: () => updateStatus(o._id, 'cancelled') }])}>
+                      <Text style={[styles.actionMiniText, { color: colors.red }]}>Cancel</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
             </View>

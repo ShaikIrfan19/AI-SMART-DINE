@@ -96,12 +96,15 @@ const getOrders = async (req, res) => {
     const { restaurantId, status, tableId, date, page = 1, limit = 20 } = req.query;
     const filter = {};
 
-    if (restaurantId) filter.restaurantId = restaurantId;
-    else if (req.user.role !== 'super_admin') filter.restaurantId = req.user.restaurantId;
+    if (restaurantId) {
+      filter.restaurantId = restaurantId;
+    } else if (req.user.role !== 'super_admin') {
+      filter.restaurantId = req.user.restaurantId || req.user._id;
+    }
 
     if (status) filter.status = status;
     if (tableId) filter.tableId = tableId;
-    if (req.user.role === 'waiter') filter.waiterId = req.user._id;
+    if (req.query.myOrders === 'true' && req.user.role === 'waiter') filter.waiterId = req.user._id;
     if (req.user.role === 'customer') filter.customerId = req.user._id;
 
     if (date) {
@@ -168,11 +171,13 @@ const updateOrderStatus = async (req, res) => {
 // @GET /api/orders/live
 const getLiveOrders = async (req, res) => {
   try {
-    const restaurantId = req.query.restaurantId || req.user.restaurantId;
-    const orders = await Order.find({
-      restaurantId,
+    let restaurantId = req.query.restaurantId || req.user.restaurantId || req.user._id;
+    const filter = {
       status: { $in: ['pending', 'confirmed', 'preparing', 'ready'] },
-    })
+    };
+    if (restaurantId) filter.restaurantId = restaurantId;
+
+    const orders = await Order.find(filter)
       .populate('tableId', 'tableNumber')
       .populate('waiterId', 'name')
       .sort({ createdAt: 1 });
