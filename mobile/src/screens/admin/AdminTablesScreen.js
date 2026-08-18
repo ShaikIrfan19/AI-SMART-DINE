@@ -419,14 +419,24 @@ export function AdminStaffScreen() {
   };
 
   const addStaff = async () => {
-    if (!form.name || !form.email || !form.password) return Alert.alert('Error', 'Name, email and password are required');
+    if (!form.name || !form.email || !form.password) {
+      return Alert.alert('Error', 'Full Name, Email and Password are required');
+    }
     try {
       const res = await api.post('/staff', { ...form, role: 'waiter' });
-      setStaff(prev => [res.data.data, ...prev]);
+      if (res.data?.data) {
+        setStaff(prev => [res.data.data, ...prev]);
+      }
       setShowAdd(false);
-      setForm({ name: '', email: '', phone: '', password: '' });
-      Alert.alert('✅ Success', 'Waiter created successfully!');
-    } catch (err) { Alert.alert('Error', err.response?.data?.message || 'Failed to create waiter'); }
+      setForm({ name: '', email: '', password: '' });
+      Alert.alert(
+        '✅ Waiter Account Ready!',
+        `Waiter ${form.name} created successfully!\n\nEmail: ${form.email}\nRole: Waiter (Approved)\n\nThe waiter can now immediately sign in with these credentials and start taking orders.`
+      );
+      fetchStaff();
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.message || 'Failed to create waiter');
+    }
   };
 
   const pendingWaiters = staff.filter(s => !s.isActive);
