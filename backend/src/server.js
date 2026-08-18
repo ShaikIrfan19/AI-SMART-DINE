@@ -40,10 +40,14 @@ app.use('/api/', limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Disable Mongoose command buffering when DB is disconnected
+mongoose.set('bufferCommands', false);
+
 // Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI, { family: 4 })
+const mongoURI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/aismartdine';
+mongoose.connect(mongoURI, { family: 4 })
   .then(() => console.log('✅ MongoDB connected successfully'))
-  .catch((err) => console.error('❌ MongoDB connection error:', err));
+  .catch((err) => console.error('❌ MongoDB connection error:', err.message));
 
 // DB Connection Check Middleware
 app.use('/api', (req, res, next) => {

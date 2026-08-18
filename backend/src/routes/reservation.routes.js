@@ -53,7 +53,11 @@ staffRouter.use(protect, authorize('restaurant_admin', 'super_admin'));
 staffRouter.get('/', async (req, res) => {
   try {
     const restaurantId = req.query.restaurantId || req.user.restaurantId || req.user._id;
-    const staff = await User.find({ restaurantId, role: { $in: ['waiter', 'restaurant_admin'] } }).select('-password');
+    let staff = await User.find({ restaurantId, role: { $in: ['waiter', 'restaurant_admin'] } }).select('-password');
+    if (!staff.length) {
+      // Fallback: return all registered waiters waiting for admin approval
+      staff = await User.find({ role: 'waiter' }).select('-password');
+    }
     res.json({ success: true, data: staff });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
