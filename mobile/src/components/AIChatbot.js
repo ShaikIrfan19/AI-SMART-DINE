@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   chatWindow: {
-    height: height * 0.72,
+    height: SCREEN_HEIGHT * 0.72,
     backgroundColor: '#0c0c0c',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
