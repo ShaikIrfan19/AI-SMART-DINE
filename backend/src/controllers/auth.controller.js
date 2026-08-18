@@ -73,7 +73,7 @@ const login = async (req, res) => {
       const hashedPassword = await bcrypt.hash(cleanPassword, 12);
 
       if (!user) {
-        const created = await User.create({
+        user = await User.create({
           name: DEMO_ACCOUNTS[cleanEmail].name,
           email: cleanEmail,
           password: cleanPassword,
@@ -81,15 +81,14 @@ const login = async (req, res) => {
           isActive: true,
           isEmailVerified: true,
         });
-        user = await User.findById(created._id);
       } else {
         await User.updateOne({ _id: user._id }, { $set: { password: hashedPassword, isActive: true } });
         user = await User.findById(user._id);
       }
-    }
-
-    if (!user || !(await user.comparePassword(cleanPassword))) {
-      return res.status(401).json({ success: false, message: 'Invalid email or password.' });
+    } else {
+      if (!user || !(await user.comparePassword(cleanPassword))) {
+        return res.status(401).json({ success: false, message: 'Invalid email or password.' });
+      }
     }
 
     // Block deactivated customers or admins, but allow waiters to log in so their app can display the Pending Approval screen
