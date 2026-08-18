@@ -73,9 +73,9 @@ app.use('/api/notifications', require('./routes/notification.routes'));
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'OK',
-    message: 'AI Smart Dine API is running',
+    message: 'AI Smart Dine API is running (v1.0.2-live)',
     timestamp: new Date().toISOString(),
-    version: '1.0.0',
+    version: '1.0.2',
   });
 });
 
