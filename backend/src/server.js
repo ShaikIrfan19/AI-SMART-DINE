@@ -86,6 +86,44 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Database Wipe / Reset Endpoint
+app.post('/api/admin/reset-database', async (req, res) => {
+  try {
+    const User = require('./models/User.model');
+    const Order = require('./models/Order.model');
+    const Table = require('./models/Table.model');
+    const MenuItem = require('./models/MenuItem.model');
+    const Reservation = require('./models/Reservation.model').Reservation;
+
+    // Delete all documents from collections
+    await Promise.all([
+      User.deleteMany({}),
+      Order.deleteMany({}),
+      Table.deleteMany({}),
+      MenuItem.deleteMany({}),
+      Reservation ? Reservation.deleteMany({}) : Promise.resolve(),
+    ]);
+
+    // Create fresh default Admin account
+    const defaultAdmin = await User.create({
+      name: 'Restaurant Admin',
+      email: 'admin@restaurant.com',
+      password: 'Admin@123',
+      role: 'restaurant_admin',
+      isActive: true,
+      isEmailVerified: true,
+    });
+
+    res.json({
+      success: true,
+      message: '✅ All data in MongoDB has been completely wiped and reset!',
+      defaultAdmin: { email: defaultAdmin.email, role: defaultAdmin.role },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Database reset failed', error: err.message });
+  }
+});
+
 // 404 Handler
 app.use('*', (req, res) => {
   res.status(404).json({ success: false, message: 'Route not found' });
