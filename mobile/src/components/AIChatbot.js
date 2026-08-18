@@ -2,12 +2,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   Modal, ScrollView, ActivityIndicator, KeyboardAvoidingView,
-  Platform, Dimensions, Animated,
+  Platform, Dimensions, Animated, PanResponder,
 } from 'react-native';
 import api from '../services/api';
 import { colors, radius, shadows } from '../theme';
 
-const { width, height } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function AIChatbot() {
   const [isOpen, setIsOpen]     = useState(false);
@@ -23,6 +23,39 @@ export default function AIChatbot() {
   ]);
 
   const scrollViewRef = useRef(null);
+
+  // ── PanResponder for Draggable / Movable Floating Button ──────────────────
+  const pan = useRef(new Animated.ValueXY({ x: SCREEN_WIDTH - 80, y: SCREEN_HEIGHT - 170 })).current;
+  const isDragging = useRef(false);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        // Only consider it a drag if moved more than 4 pixels
+        return Math.abs(gestureState.dx) > 4 || Math.abs(gestureState.dy) > 4;
+      },
+      onPanResponderGrant: () => {
+        isDragging.current = false;
+        pan.setOffset({
+          x: pan.x._value,
+          y: pan.y._value,
+        });
+        pan.setValue({ x: 0, y: 0 });
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        isDragging.current = true;
+        pan.setValue({ x: gestureState.dx, y: gestureState.dy });
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        pan.flattenOffset();
+        // If it was just a tap without dragging, open the chat window
+        if (!isDragging.current || (Math.abs(gestureState.dx) < 6 && Math.abs(gestureState.dy) < 6)) {
+          setIsOpen(true);
+        }
+      },
+    })
+  ).current;
 
   useEffect(() => {
     if (isOpen) {
@@ -137,15 +170,25 @@ export default function AIChatbot() {
 
   return (
     <>
-      {/* ── Floating Chat Button (Bottom Right) ── */}
+      {/* ── Draggable Floating Chat Button (Moveable anywhere) ── */}
       {!isOpen && (
-        <TouchableOpacity
-          style={styles.floatingBtn}
-          onPress={() => setIsOpen(true)}
-          activeOpacity={0.85}
+        <Animated.View
+          {...panResponder.panHandlers}
+          style={[
+            styles.floatingBtn,
+            {
+              transform: pan.getTranslateTransform(),
+            },
+          ]}
         >
-          <Text style={styles.floatingIcon}>🤖</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => setIsOpen(true)}
+            style={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Text style={styles.floatingIcon}>🤖</Text>
+          </TouchableOpacity>
+        </Animated.View>
       )}
 
       {/* ── Modern Chat Window Modal ── */}
@@ -250,23 +293,23 @@ export default function AIChatbot() {
 }
 
 const styles = StyleSheet.create({
-  // Floating Button
+  // Draggable Floating Button
   floatingBtn: {
     position: 'absolute',
-    bottom: 24,
-    right: 20,
+    top: 0,
+    left: 0,
     width: 60,
     height: 60,
     borderRadius: 30,
     backgroundColor: colors.green,
     alignItems: 'center',
-    justify: 'center',
+    justifyContent: 'center',
     shadowColor: colors.green,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.5,
     shadowRadius: 12,
-    elevation: 10,
-    zIndex: 999,
+    elevation: 12,
+    zIndex: 9999,
   },
   floatingIcon: { fontSize: 30 },
 
