@@ -28,10 +28,10 @@ app.use(cors({
   credentials: true,
 }));
 
-// Rate limiting
+// Rate limiting (generous limit for live polling mobile app)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,
+  max: 10000, // 10,000 requests per 15 mins to accommodate live polling
   message: 'Too many requests from this IP, please try again later.',
 });
 app.use('/api/', limiter);
@@ -104,7 +104,7 @@ app.post('/api/admin/reset-database', async (req, res) => {
       Reservation ? Reservation.deleteMany({}) : Promise.resolve(),
     ]);
 
-    // Create fresh default Admin account
+    // Create fresh default accounts for quick testing
     const defaultAdmin = await User.create({
       name: 'Restaurant Admin',
       email: 'admin@restaurant.com',
@@ -114,10 +114,32 @@ app.post('/api/admin/reset-database', async (req, res) => {
       isEmailVerified: true,
     });
 
+    const defaultWaiter = await User.create({
+      name: 'John Waiter',
+      email: 'waiter@restaurant.com',
+      password: 'Waiter@123',
+      role: 'waiter',
+      isActive: true,
+      isEmailVerified: true,
+    });
+
+    const defaultCustomer = await User.create({
+      name: 'Demo Customer',
+      email: 'customer@test.com',
+      password: 'Customer@123',
+      role: 'customer',
+      isActive: true,
+      isEmailVerified: true,
+    });
+
     res.json({
       success: true,
       message: '✅ All data in MongoDB has been completely wiped and reset!',
-      defaultAdmin: { email: defaultAdmin.email, role: defaultAdmin.role },
+      defaultAccounts: [
+        { email: defaultAdmin.email, role: defaultAdmin.role },
+        { email: defaultWaiter.email, role: defaultWaiter.role },
+        { email: defaultCustomer.email, role: defaultCustomer.role },
+      ],
     });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Database reset failed', error: err.message });
