@@ -14,6 +14,7 @@ export default function AdminDashboard({ navigation }) {
   const dispatch = useDispatch();
   const [stats, setStats]         = useState(null);
   const [aiInsights, setAiInsights] = useState(null);
+  const [pendingWaiters, setPendingWaiters] = useState([]);
   const [loading, setLoading]     = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [period, setPeriod]       = useState('today');
@@ -22,16 +23,38 @@ export default function AdminDashboard({ navigation }) {
 
   const fetchStats = useCallback(async () => {
     try {
-      const [statsRes, insightsRes] = await Promise.all([
+      const [statsRes, insightsRes, staffRes] = await Promise.all([
         api.get(`/analytics/dashboard?period=${period}${rid ? `&restaurantId=${rid}` : ''}`),
         rid ? api.get(`/ai/insights/${rid}`).catch(() => ({ data: null })) : Promise.resolve({ data: null }),
+        api.get('/staff').catch(() => ({ data: { data: [] } })),
       ]);
       setStats(statsRes.data.data);
       if (insightsRes.data) setAiInsights(insightsRes.data.data);
+      
+      const staffList = staffRes?.data?.data || [];
+      setPendingWaiters(staffList.filter(s => !s.isActive));
     } catch {} finally { setLoading(false); setRefreshing(false); }
   }, [user, period]);
 
-  useEffect(() => { fetchStats(); }, [fetchStats]);
+  useEffect(() => {
+    fetchStats();
+    const t = setInterval(fetchStats, 6000); // Live poll waiter requests every 6s
+    return () => clearInterval(t);
+  }, [fetchStats]);
+
+  const handleWaiterDecision = async (waiterId, waiterName, approve) => {
+    try {
+      await api.patch(`/staff/${waiterId}/status`, { isActive: approve });
+      setPendingWaiters(prev => prev.filter(w => w._id !== waiterId));
+      Alert.alert(
+        approve ? '✅ Approved' : '❌ Access Denied',
+        `Waiter ${waiterName} has been ${approve ? 'approved and granted dashboard access' : 'denied access'}.`
+      );
+      fetchStats();
+    } catch {
+      Alert.alert('Error', 'Failed to update waiter access');
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -121,6 +144,80 @@ export default function AdminDashboard({ navigation }) {
           <View style={styles.centered}><ActivityIndicator size="large" color={colors.green} /></View>
         ) : (
           <View style={{ paddingHorizontal: spacing.lg, paddingBottom: 32 }}>
+
+            {/* 🔔 LIVE WAITER PERMISSION REQUESTS BANNER (Shows immediately when waiter logs in/registers) */}
+            {pendingWaiters.length > 0 && (
+              <View style={{
+                backgroundColor: '#161208',
+                borderRadius: radius.lg,
+                padding: 16,
+                marginBottom: spacing.lg,
+                borderWidth: 1.5,
+                borderColor: colors.amber,
+              }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={{ fontSize: 20 }}>🔔</Text>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: colors.amber }}>
+                      New Waiter Permission Request ({pendingWaiters.length})
+                    </Text>
+                  </View>
+                  <View style={{ backgroundColor: 'rgba(245,158,11,0.2)', borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 }}>
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: colors.amber }}>ACTION NEEDED</Text>
+                  </View>
+                </View>
+
+                {pendingWaiters.map(waiter => (
+                  <View key={waiter._id} style={{
+                    backgroundColor: colors.bgCard,
+                    borderRadius: radius.md,
+                    padding: 14,
+                    marginBottom: 10,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255,255,255,0.08)',
+                  }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                      <View style={{
+                        width: 38, height: 38, borderRadius: 10,
+                        backgroundColor: 'rgba(245,158,11,0.2)', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <Text style={{ fontSize: 16, fontWeight: '800', color: colors.amber }}>{waiter.name?.charAt(0).toUpperCase()}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 15, fontWeight: '800', color: colors.textPrimary }}>{waiter.name}</Text>
+                        <Text style={{ fontSize: 12, color: colors.textMuted }}>📧 {waiter.email} {waiter.phone ? `• 📱 ${waiter.phone}` : ''}</Text>
+                      </View>
+                    </View>
+
+                    {/* Accept & Deny Buttons */}
+                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                      <TouchableOpacity
+                        onPress={() => handleWaiterDecision(waiter._id, waiter.name, true)}
+                        style={{
+                          flex: 1, paddingVertical: 10, borderRadius: 10,
+                          backgroundColor: colors.green, alignItems: 'center', justifyContent: 'center',
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={{ fontSize: 13, fontWeight: '800', color: '#000' }}>✓ Accept Waiter</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        onPress={() => handleWaiterDecision(waiter._id, waiter.name, false)}
+                        style={{
+                          flex: 1, paddingVertical: 10, borderRadius: 10,
+                          backgroundColor: 'rgba(239,68,68,0.15)', borderWidth: 1, borderColor: colors.red,
+                          alignItems: 'center', justifyContent: 'center',
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={{ fontSize: 13, fontWeight: '800', color: colors.red }}>✕ Deny</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
 
             {/* Stat Cards */}
             <View style={styles.statsGrid}>

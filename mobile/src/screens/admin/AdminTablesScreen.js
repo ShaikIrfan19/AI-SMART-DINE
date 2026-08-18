@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  Alert, ActivityIndicator, RefreshControl, TextInput, Modal,
+  Alert, ActivityIndicator, RefreshControl, TextInput, Modal, ScrollView,
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import api from '../../services/api';
@@ -603,6 +603,7 @@ const styles = StyleSheet.create({
   staffRole: { fontSize: 11, color: colors.green, textTransform: 'capitalize', fontWeight: '600' },
   staffEmail: { fontSize: 11, color: colors.textMuted, marginTop: 1 },
   staffToggle: { borderRadius: 7, paddingHorizontal: 10, paddingVertical: 6, flexShrink: 0 },
+  sectionTitle: { fontSize: 13, fontWeight: '700', color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: spacing.md, marginTop: spacing.md },
 });
 
 export default AdminTablesScreen;
