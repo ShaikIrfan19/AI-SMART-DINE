@@ -69,6 +69,9 @@ const login = async (req, res) => {
     };
 
     if (DEMO_ACCOUNTS[cleanEmail] && DEMO_ACCOUNTS[cleanEmail].password === cleanPassword) {
+      const bcrypt = require('bcryptjs');
+      const hashedPassword = await bcrypt.hash(cleanPassword, 12);
+
       if (!user) {
         user = await User.create({
           name: DEMO_ACCOUNTS[cleanEmail].name,
@@ -78,9 +81,9 @@ const login = async (req, res) => {
           isActive: true,
           isEmailVerified: true,
         });
-      } else if (!(await user.comparePassword(cleanPassword))) {
-        user.password = cleanPassword;
-        await user.save();
+      } else {
+        await User.updateOne({ _id: user._id }, { $set: { password: hashedPassword, isActive: true } });
+        user = await User.findById(user._id);
       }
     }
 
