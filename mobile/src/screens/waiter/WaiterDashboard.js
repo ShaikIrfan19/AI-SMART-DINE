@@ -7,6 +7,10 @@ import { useSelector } from 'react-redux';
 import api from '../../services/api';
 import { colors, spacing, radius, shadows } from '../../theme';
 
+import { logout } from '../../store/authSlice';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useDispatch } from 'react-redux';
+
 const STATUS_CONFIG = {
   available: { color: colors.green, bg: 'rgba(16,185,129,0.12)', label: 'Available', emoji: '🟢' },
   occupied: { color: colors.red, bg: 'rgba(239,68,68,0.12)', label: 'Occupied', emoji: '🔴' },
@@ -16,22 +20,82 @@ const STATUS_CONFIG = {
 
 export function WaiterDashboard({ navigation }) {
   const { user } = useSelector(s => s.auth);
+  const dispatch = useDispatch();
   const [stats, setStats] = useState({ tables: [], liveOrders: [], todayOrders: 0 });
   const [loading, setLoading] = useState(true);
+  const [isActiveStatus, setIsActiveStatus] = useState(user?.isActive ?? true);
 
-  const fetchData = useCallback(async () => {
-    const rid = user?.restaurantId?._id || user?.restaurantId;
-    if (!rid) return setLoading(false);
+  const checkStatusAndFetchData = useCallback(async () => {
     try {
+      // 1. Fetch current waiter profile to check if Admin accepted or rejected
+      const meRes = await api.get('/users/profile').catch(() => null);
+      if (meRes?.data?.data) {
+        const currentActive = meRes.data.data.isActive;
+        setIsActiveStatus(currentActive);
+        if (!currentActive) {
+          setLoading(false);
+          return; // Stop if not accepted yet
+        }
+      }
+
+      // 2. If approved, load waiter tables and orders
+      const rid = user?.restaurantId?._id || user?.restaurantId;
       const [tabRes, orderRes] = await Promise.all([
-        api.get(`/tables?restaurantId=${rid}`),
-        api.get('/orders/live'),
+        rid ? api.get(`/tables?restaurantId=${rid}`) : api.get('/tables').catch(() => ({ data: { data: [] } })),
+        api.get('/orders/live').catch(() => ({ data: { data: [] } })),
       ]);
-      setStats({ tables: tabRes.data.data, liveOrders: orderRes.data.data, todayOrders: orderRes.data.data.length });
-    } catch {} finally { setLoading(false); }
+      setStats({
+        tables: tabRes.data.data || [],
+        liveOrders: orderRes.data.data || [],
+        todayOrders: orderRes.data.data?.length || 0,
+      });
+    } catch {} finally {
+      setLoading(false);
+    }
   }, [user]);
 
-  useEffect(() => { fetchData(); const t = setInterval(fetchData, 20000); return () => clearInterval(t); }, [fetchData]);
+  useEffect(() => {
+    checkStatusAndFetchData();
+    const t = setInterval(checkStatusAndFetchData, 5000); // Live poll approval status every 5 seconds
+    return () => clearInterval(t);
+  }, [checkStatusAndFetchData]);
+
+  const handleLogout = async () => {
+    await AsyncStorage.multiRemove(['asd_token', 'asd_user']);
+    dispatch(logout());
+  };
+
+  // ─── WAITER PENDING SCREEN (LOCKED UNTIL ADMIN ACCEPTS) ───────────────────
+  if (!isActiveStatus) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
+        <View style={{
+          width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(245,158,11,0.15)',
+          alignItems: 'center', justifyContent: 'center', marginBottom: 20, borderWidth: 1.5, borderColor: colors.amber,
+        }}>
+          <Text style={{ fontSize: 36 }}>⏳</Text>
+        </View>
+        <Text style={{ fontSize: 22, fontWeight: '800', color: colors.textPrimary, textAlign: 'center', marginBottom: 8 }}>
+          Permission Request Sent
+        </Text>
+        <Text style={{ fontSize: 13, color: colors.textMuted, textAlign: 'center', lineHeight: 20, marginBottom: 24, paddingHorizontal: 16 }}>
+          Your waiter account is currently <Text style={{ color: colors.amber, fontWeight: '700' }}>Pending Admin Approval</Text>. Once the Restaurant Admin accepts your request, your dashboard will unlock automatically.
+        </Text>
+
+        <View style={{ backgroundColor: colors.bgCard, borderRadius: 14, padding: 14, width: '100%', borderWidth: 1, borderColor: colors.border, marginBottom: 24 }}>
+          <Text style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 4 }}>👤 Waiter: <Text style={{ color: colors.textPrimary, fontWeight: '700' }}>{user?.name}</Text></Text>
+          <Text style={{ fontSize: 12, color: colors.textSecondary }}>📧 Email: <Text style={{ color: colors.textPrimary, fontWeight: '700' }}>{user?.email}</Text></Text>
+        </View>
+
+        <TouchableOpacity
+          style={{ width: '100%', padding: 15, borderRadius: 12, backgroundColor: 'rgba(239,68,68,0.15)', borderWidth: 1, borderColor: colors.red, alignItems: 'center' }}
+          onPress={handleLogout}
+        >
+          <Text style={{ fontSize: 14, fontWeight: '800', color: colors.red }}>🚪 Logout</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   const occupied = stats.tables.filter(t => t.status === 'occupied').length;
   const available = stats.tables.filter(t => t.status === 'available').length;
@@ -50,9 +114,14 @@ export function WaiterDashboard({ navigation }) {
           <Text style={styles.greeting}>Good day, {user?.name?.split(' ')[0]} 🍽️</Text>
           <Text style={styles.role}>Waiter Dashboard</Text>
         </View>
-        <View style={styles.liveBadge}>
-          <View style={styles.liveDot} />
-          <Text style={styles.liveText}>Live</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={styles.liveBadge}>
+            <View style={styles.liveDot} />
+            <Text style={styles.liveText}>Live</Text>
+          </View>
+          <TouchableOpacity onPress={handleLogout} style={{ padding: 6, backgroundColor: 'rgba(239,68,68,0.1)', borderRadius: 8, borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)' }}>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: colors.red }}>Logout</Text>
+          </TouchableOpacity>
         </View>
       </View>
 

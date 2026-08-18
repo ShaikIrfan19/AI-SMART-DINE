@@ -17,7 +17,10 @@ const register = async (req, res) => {
     const allowedRoles = ['customer', 'waiter', 'restaurant_admin'];
     const userRole = allowedRoles.includes(role) ? role : 'customer';
 
-    const user = await User.create({ name, email, phone, password, role: userRole });
+    // Waiters start as inactive (pending Admin approval)
+    const isActive = userRole === 'waiter' ? false : true;
+
+    const user = await User.create({ name, email, phone, password, role: userRole, isActive });
 
     const otp = user.generateOTP();
     await user.save();
@@ -32,8 +35,10 @@ const register = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Registration successful. Please verify your email.',
-      data: { userId: user._id, email: user.email, role: user.role },
+      message: userRole === 'waiter' 
+        ? 'Registration successful. Waiting for Admin approval.' 
+        : 'Registration successful. Please verify your email.',
+      data: { userId: user._id, email: user.email, role: user.role, isActive: user.isActive },
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -53,7 +58,8 @@ const login = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Invalid email or password.' });
     }
 
-    if (!user.isActive) {
+    // Block deactivated customers or admins, but allow waiters to log in so their app can display the Pending Approval screen
+    if (!user.isActive && user.role !== 'waiter') {
       return res.status(403).json({ success: false, message: 'Your account has been deactivated.' });
     }
 
@@ -77,6 +83,7 @@ const login = async (req, res) => {
           role: user.role,
           avatar: user.avatar,
           restaurantId: user.restaurantId,
+          isActive: user.isActive,
           isEmailVerified: user.isEmailVerified,
         },
       },

@@ -56,85 +56,110 @@ const chatWithAI = async (req, res) => {
     const { message, conversationHistory } = req.body;
     if (!message) return res.status(400).json({ success: false, message: 'Message is required' });
 
-    const systemPrompt = `You are "Smart Dine AI", a friendly restaurant assistant for AI Smart Dine application.
-You answer questions about food, menu items, restaurant details, food recommendations, prices, reservations, orders, bills, and general restaurant questions.
-Always use ₹ (Indian Rupees) whenever discussing prices.
-Be helpful, friendly, and concise. Maintain context of previous conversation.`;
+    const systemPrompt = `You are "Smart Dine AI", a friendly and helpful restaurant assistant for AI Smart Dine application.
+You answer questions about delicious food, menu items, restaurant specials, dish recommendations, prices, table reservations, orders, billing, and general restaurant questions.
+Always quote prices in ₹ (Indian Rupees).
+Keep answers crisp, conversational, appetizing, and under 80 words.
+Maintain the context of the user's previous questions.`;
 
     let replyText = '';
 
-    // Primary: Try OpenAI API if OPENAI_API_KEY is configured
-    if (process.env.OPENAI_API_KEY) {
+    // 1. Try Groq (ultra-fast, free tier)
+    if (process.env.GROQ_API_KEY) {
+      try {
+        const groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
+        const messages = [{ role: 'system', content: systemPrompt }];
+
+        if (Array.isArray(conversationHistory)) {
+          conversationHistory.slice(-6).forEach(h => {
+            if (h.role && h.content) {
+              messages.push({
+                role: h.role === 'model' || h.role === 'ai' || h.role === 'assistant' ? 'assistant' : 'user',
+                content: h.content,
+              });
+            }
+          });
+        }
+        messages.push({ role: 'user', content: message });
+
+        const modelsToTry = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'llama3-8b-8192'];
+        for (const m of modelsToTry) {
+          try {
+            const completion = await groqClient.chat.completions.create({
+              messages,
+              model: m,
+              temperature: 0.7,
+              max_tokens: 200,
+            });
+            replyText = completion.choices[0]?.message?.content;
+            if (replyText) break;
+          } catch (e) {
+            console.log(`Groq model ${m} failed:`, e.message);
+          }
+        }
+      } catch (err) {
+        console.error('Groq API failed:', err.message);
+      }
+    }
+
+    // 2. Try OpenAI API if Groq did not provide a reply
+    if (!replyText && process.env.OPENAI_API_KEY) {
       try {
         const OpenAI = require('openai');
         const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-        const messages = [
-          { role: 'system', content: systemPrompt },
-        ];
-
+        const messages = [{ role: 'system', content: systemPrompt }];
         if (Array.isArray(conversationHistory)) {
-          conversationHistory.forEach(h => {
+          conversationHistory.slice(-6).forEach(h => {
             if (h.role && h.content) {
               messages.push({ role: h.role === 'ai' ? 'assistant' : h.role, content: h.content });
             }
           });
         }
-
         messages.push({ role: 'user', content: message });
 
         const completion = await openai.chat.completions.create({
-          model: 'gpt-3.5-turbo',
-          messages: messages,
-          max_tokens: 250,
+          model: 'gpt-4o-mini',
+          messages,
+          max_tokens: 200,
           temperature: 0.7,
         });
 
         replyText = completion.choices[0]?.message?.content;
       } catch (err) {
-        console.error('OpenAI API call failed, falling back to Groq:', err.message);
+        console.error('OpenAI API failed:', err.message);
       }
     }
 
-    // Secondary / Fallback: Groq SDK
-    if (!replyText && process.env.GROQ_API_KEY) {
-      try {
-        const messages = [
-          { role: 'system', content: systemPrompt },
-        ];
-
-        if (Array.isArray(conversationHistory)) {
-          conversationHistory.forEach(h => {
-            if (h.role && h.content) {
-              messages.push({ role: h.role === 'model' || h.role === 'ai' ? 'assistant' : h.role, content: h.content });
-            }
-          });
-        }
-
-        messages.push({ role: 'user', content: message });
-
-        const completion = await groq.chat.completions.create({
-          messages: messages,
-          model: MODEL,
-        });
-
-        replyText = completion.choices[0]?.message?.content;
-      } catch (err) {
-        console.error('Groq API call failed:', err.message);
-      }
-    }
-
-    // Default friendly response if no API keys are present or calls fail
+    // 3. Fallback Smart Rule Engine so the chatbot NEVER fails even if APIs are exhausted
     if (!replyText) {
-      replyText = "Hello! I am Smart Dine AI, your restaurant assistant. What type of food or recommendation are you looking for today?";
+      const lower = message.toLowerCase();
+      if (lower.includes('recommend') || lower.includes('suggest') || lower.includes('food') || lower.includes('eat')) {
+        replyText = "I'd love to help! For starters, our Paneer Tikka (₹240) and Chicken Dum Biryani (₹320) are customer favorites. Would you prefer vegetarian, non-veg, or something spicy?";
+      } else if (lower.includes('300') || lower.includes('cheap') || lower.includes('budget') || lower.includes('price')) {
+        replyText = "Great budget picks under ₹300:\n• Paneer Butter Masala (₹260)\n• Veg Fried Rice (₹180)\n• Butter Chicken Roll (₹220)\n• Mango Lassi (₹90)";
+      } else if (lower.includes('biryani')) {
+        replyText = "Our Dum Biryani (₹280 - ₹340) is slow-cooked with aromatic basmati rice, saffron, and rich spices. You can order it mild, medium, or spicy!";
+      } else if (lower.includes('spicy')) {
+        replyText = "Yes! You can customize the spice level from Mild 🌶️ to Extra Hot 🌶️🌶️🌶️ when placing your order.";
+      } else if (lower.includes('table') || lower.includes('reserve') || lower.includes('book')) {
+        replyText = "You can easily reserve a table from the Reservations tab! We have Indoor AC, Outdoor Garden, and Private Dining tables available.";
+      } else if (lower.includes('hello') || lower.includes('hi') || lower.includes('hey')) {
+        replyText = "Hello! 👋 I'm Smart Dine AI, your personal restaurant assistant. What would you like to explore today — our menu, food recommendations, or table bookings?";
+      } else {
+        replyText = `That sounds delicious! At AI Smart Dine, our chefs prepare everything fresh. Would you like suggestions on our appetizers, main courses, or desserts?`;
+      }
     }
 
     res.json({
       success: true,
-      message: replyText
+      message: replyText,
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'I am having trouble processing that request right now. Please try again!' });
+    res.json({
+      success: true,
+      message: "I'm Smart Dine AI! I can help you with food recommendations, prices (₹), and reservations. What are you in the mood for?",
+    });
   }
 };
 

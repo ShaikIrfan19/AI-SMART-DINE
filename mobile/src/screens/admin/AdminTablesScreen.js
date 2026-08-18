@@ -383,19 +383,39 @@ export function AdminOrdersScreen() {
 // ─── AdminStaffScreen ─────────────────────────────────────────────────────────
 export function AdminStaffScreen() {
   const { user } = useSelector(s => s.auth);
-  const [staff, setStaff]   = useState([]);
+  const [staff, setStaff]     = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '' });
+  const [form, setForm]       = useState({ name: '', email: '', phone: '', password: '' });
+
+  const fetchStaff = async () => {
+    try {
+      const r = await api.get('/staff');
+      let data = r.data.data || [];
+      if (!data.length) {
+        const u = await api.get('/users?role=waiter').catch(() => ({ data: { data: [] } }));
+        data = u.data.data || [];
+      }
+      setStaff(data);
+    } catch {} finally { setLoading(false); setRefreshing(false); }
+  };
 
   useEffect(() => {
-    api.get('/staff').then(r => setStaff(r.data.data)).catch(() => {}).finally(() => setLoading(false));
+    fetchStaff();
+    const timer = setInterval(fetchStaff, 8000); // Live poll staff every 8s
+    return () => clearInterval(timer);
   }, []);
 
-  const toggle = async (id, current) => {
-    await api.patch(`/staff/${id}/status`, { isActive: !current });
-    setStaff(prev => prev.map(s => s._id === id ? { ...s, isActive: !current } : s));
+  const handleStatusChange = async (id, name, approve) => {
+    try {
+      await api.patch(`/staff/${id}/status`, { isActive: approve });
+      setStaff(prev => prev.map(s => s._id === id ? { ...s, isActive: approve } : s));
+      Alert.alert(approve ? '✅ Approved' : '❌ Access Revoked', `Waiter ${name} ${approve ? 'can now access the Waiter Dashboard' : 'has been rejected'}`);
+    } catch {
+      Alert.alert('Error', 'Failed to update waiter access');
+    }
   };
 
   const addStaff = async () => {
@@ -409,36 +429,88 @@ export function AdminStaffScreen() {
     } catch (err) { Alert.alert('Error', err.response?.data?.message || 'Failed to create waiter'); }
   };
 
+  const pendingWaiters = staff.filter(s => !s.isActive);
+  const activeWaiters  = staff.filter(s => s.isActive);
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Staff ({staff.length})</Text>
+        <Text style={styles.headerTitle}>Staff Permissions ({staff.length})</Text>
         <TouchableOpacity style={styles.addBtn} onPress={() => setShowAdd(true)}>
           <Text style={styles.addBtnText}>+ Add Waiter</Text>
         </TouchableOpacity>
       </View>
+
       {loading ? <View style={styles.centered}><ActivityIndicator color={colors.green} /></View> : (
-        <FlatList
-          data={staff}
-          keyExtractor={s => s._id}
-          contentContainerStyle={{ padding: spacing.md, paddingBottom: 24 }}
-          renderItem={({ item: member }) => (
-            <View style={styles.staffCard}>
-              <View style={styles.staffAvatar}><Text style={styles.staffAvatarText}>{member.name?.charAt(0)}</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.staffName}>{member.name}</Text>
-                <Text style={styles.staffRole}>{member.role?.replace('_', ' ')}</Text>
-                <Text style={styles.staffEmail} numberOfLines={1}>{member.email}</Text>
-              </View>
-              <TouchableOpacity onPress={() => toggle(member._id, member.isActive)}
-                style={[styles.staffToggle, { backgroundColor: member.isActive ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)' }]}>
-                <Text style={{ fontSize: 11, fontWeight: '700', color: member.isActive ? colors.green : colors.red }}>
-                  {member.isActive ? 'ACTIVE' : 'OFF'}
-                </Text>
-              </TouchableOpacity>
+        <ScrollView
+          contentContainerStyle={{ padding: spacing.md, paddingBottom: 40 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchStaff(); }} tintColor={colors.green} />}
+        >
+          {/* Pending Approval Section */}
+          {pendingWaiters.length > 0 && (
+            <View style={{ marginBottom: 20 }}>
+              <Text style={[styles.sectionTitle, { color: colors.amber, marginBottom: 8 }]}>
+                ⏳ Pending Waiter Requests ({pendingWaiters.length})
+              </Text>
+              {pendingWaiters.map(member => (
+                <View key={member._id} style={[styles.staffCard, { flexDirection: 'column', alignItems: 'stretch', gap: 12, padding: 14, borderColor: colors.amber, borderWidth: 1.5, marginBottom: 10 }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <View style={[styles.staffAvatar, { backgroundColor: 'rgba(245,158,11,0.2)' }]}>
+                      <Text style={[styles.staffAvatarText, { color: colors.amber }]}>{member.name?.charAt(0).toUpperCase()}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.staffName}>{member.name}</Text>
+                      <Text style={styles.staffEmail} numberOfLines={1}>{member.email}</Text>
+                      <Text style={{ fontSize: 11, color: colors.amber, fontWeight: '700', marginTop: 2 }}>⚠️ Requesting Dashboard Access</Text>
+                    </View>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <TouchableOpacity
+                      onPress={() => handleStatusChange(member._id, member.name, true)}
+                      style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: colors.green, alignItems: 'center' }}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: '#000' }}>✓ Accept & Grant Access</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleStatusChange(member._id, member.name, false)}
+                      style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: 'rgba(239,68,68,0.15)', borderWidth: 1, borderColor: colors.red, alignItems: 'center' }}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: colors.red }}>✕ Reject</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
             </View>
           )}
-        />
+
+          {/* Active Waiters Section */}
+          <Text style={[styles.sectionTitle, { marginBottom: 8 }]}>
+            👥 Active Waiters & Staff ({activeWaiters.length})
+          </Text>
+          {activeWaiters.length === 0 ? (
+            <Text style={{ color: colors.textMuted, fontSize: 13, textAlign: 'center', padding: 20 }}>No active staff members found.</Text>
+          ) : (
+            activeWaiters.map(member => (
+              <View key={member._id} style={[styles.staffCard, { marginBottom: 10 }]}>
+                <View style={styles.staffAvatar}><Text style={styles.staffAvatarText}>{member.name?.charAt(0).toUpperCase()}</Text></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.staffName}>{member.name}</Text>
+                  <Text style={styles.staffRole}>{member.role?.replace('_', ' ')}</Text>
+                  <Text style={styles.staffEmail} numberOfLines={1}>{member.email}</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => handleStatusChange(member._id, member.name, false)}
+                  style={[styles.staffToggle, { backgroundColor: 'rgba(239,68,68,0.12)', paddingHorizontal: 12, paddingVertical: 6 }]}
+                >
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: colors.red }}>
+                    Revoke Access
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ))
+          )}
+        </ScrollView>
       )}
 
       {/* Add Staff Modal */}
@@ -449,7 +521,7 @@ export function AdminStaffScreen() {
             {[
               { label: 'Full Name', key: 'name', placeholder: 'John Doe', secure: false },
               { label: 'Email', key: 'email', placeholder: 'waiter@test.com', secure: false },
-              { label: 'Phone', key: 'phone', placeholder: '1234567890', secure: false },
+              { label: 'Phone', key: 'phone', placeholder: '+91', secure: false },
               { label: 'Password', key: 'password', placeholder: 'Secret password', secure: true },
             ].map(f => (
               <View key={f.key} style={{ marginBottom: 12 }}>
