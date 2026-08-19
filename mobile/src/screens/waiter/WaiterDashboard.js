@@ -146,9 +146,8 @@ export function WaiterDashboard({ navigation }) {
             {[
               { icon: '🪑', label: 'View Tables', action: () => navigation.navigate('Tables') },
               { icon: '➕', label: 'New Order', action: () => navigation.navigate('TakeOrder') },
-              { icon: '📋', label: 'Orders', action: () => navigation.navigate('Orders') },
-              { icon: '🔍', label: 'Scan Menu', action: () => navigation.navigate('ScanMenu') },
-              { icon: '🔔', label: 'Call Alert', action: () => Alert.alert('No waiter calls at this time') },
+              { icon: '📋', label: 'My Orders', action: () => navigation.navigate('Orders') },
+              { icon: '🔔', label: 'Call Alert', action: () => Alert.alert('🔔 No Calls', 'No waiter calls at this time.') },
             ].map(a => (
               <TouchableOpacity key={a.label} style={styles.actionCard} onPress={a.action} activeOpacity={0.8}>
                 <Text style={styles.actionIcon}>{a.icon}</Text>
@@ -186,13 +185,15 @@ export function WaiterTablesScreen({ navigation }) {
   const [tables, setTables] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedTable, setSelectedTable] = useState(null);
 
   const fetchTables = useCallback(async () => {
-    const rid = user?.restaurantId?._id || user?.restaurantId;
-    if (!rid) return setLoading(false);
     try {
-      const res = await api.get(`/tables?restaurantId=${rid}`);
-      setTables(res.data.data);
+      const rid = user?.restaurantId?._id || user?.restaurantId;
+      // Fetch with restaurantId if available, otherwise fetch all tables
+      const url = rid ? `/tables?restaurantId=${rid}` : '/tables';
+      const res = await api.get(url);
+      setTables(res.data.data || []);
     } catch {} finally { setLoading(false); setRefreshing(false); }
   }, [user]);
 
@@ -202,24 +203,23 @@ export function WaiterTablesScreen({ navigation }) {
     try {
       await api.patch(`/tables/${tableId}/status`, { status });
       setTables(prev => prev.map(t => t._id === tableId ? { ...t, status } : t));
-      Alert.alert('Updated', `Table marked as ${status}`);
-    } catch { Alert.alert('Error', 'Failed to update table'); }
+      setSelectedTable(prev => prev ? { ...prev, status } : prev);
+    } catch { Alert.alert('Error', 'Failed to update table status'); }
   };
 
-  const handleTablePress = (table) => {
-    const actions = [
-      { text: 'Take Order', onPress: () => navigation.navigate('TakeOrder', { table }) },
-      ...(table.status !== 'available' ? [{ text: 'Mark Available', onPress: () => updateStatus(table._id, 'available') }] : []),
-      { text: 'Mark Cleaning', onPress: () => updateStatus(table._id, 'cleaning') },
-      { text: 'Cancel', style: 'cancel' },
-    ];
-    Alert.alert(`Table ${table.tableNumber}`, `Status: ${table.status}\nCapacity: ${table.seatingCapacity}`, actions);
-  };
+  const handleTablePress = (table) => setSelectedTable(table);
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Tables</Text>
+      {/* Header with Back Button */}
+      <View style={[styles.header, { flexDirection: 'row', alignItems: 'center', gap: 12 }]}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={{ padding: 8, backgroundColor: colors.bgCard, borderRadius: 10, borderWidth: 1, borderColor: colors.border }}
+        >
+          <Text style={{ fontSize: 18, color: colors.textPrimary }}>←</Text>
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { flex: 1 }]}>Tables</Text>
         <TouchableOpacity style={styles.refreshBtn} onPress={() => { setRefreshing(true); fetchTables(); }}>
           <Text style={styles.refreshBtnText}>↻ Refresh</Text>
         </TouchableOpacity>
@@ -237,6 +237,15 @@ export function WaiterTablesScreen({ navigation }) {
 
       {loading ? (
         <View style={styles.centered}><ActivityIndicator size="large" color={colors.green} /></View>
+      ) : tables.length === 0 ? (
+        <View style={styles.centered}>
+          <Text style={{ fontSize: 48, marginBottom: 12 }}>🪑</Text>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: colors.textPrimary }}>No tables found</Text>
+          <Text style={{ fontSize: 13, color: colors.textMuted, marginTop: 4 }}>Tables will appear here once added by Admin</Text>
+          <TouchableOpacity onPress={fetchTables} style={{ marginTop: 16, backgroundColor: colors.green, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 }}>
+            <Text style={{ fontWeight: '700', color: '#000' }}>↻ Retry</Text>
+          </TouchableOpacity>
+        </View>
       ) : (
         <FlatList
           data={tables}
@@ -256,19 +265,94 @@ export function WaiterTablesScreen({ navigation }) {
               >
                 <View style={[tableStyles.tableTopBar, { backgroundColor: cfg.color }]} />
                 <Text style={tableStyles.tableNum}>T{table.tableNumber}</Text>
-                <Text style={tableStyles.tableType}>{table.tableType} • F{table.floor}</Text>
+                <Text style={tableStyles.tableType}>{table.tableType} • Floor {table.floor}</Text>
                 <View style={tableStyles.tableStatusRow}>
                   <View style={[tableStyles.tableDot, { backgroundColor: cfg.color }]} />
                   <Text style={[tableStyles.tableStatus, { color: cfg.color }]}>{cfg.label}</Text>
                 </View>
-                <Text style={tableStyles.tableCap}>👥 {table.seatingCapacity}</Text>
-                {table.status === 'occupied' && table.currentOrderId && (
-                  <Text style={tableStyles.tableAmt}>₹{table.currentOrderId?.totalAmount?.toFixed(0) || '—'}</Text>
+                <Text style={tableStyles.tableCap}>👥 {table.seatingCapacity} seats</Text>
+                {table.status === 'occupied' && (
+                  <Text style={tableStyles.tableAmt}>Tap to manage →</Text>
                 )}
               </TouchableOpacity>
             );
           }}
         />
+      )}
+
+      {/* Table Status Bottom Sheet Modal */}
+      {selectedTable && (
+        <View style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0,
+          backgroundColor: colors.bgSecondary,
+          borderTopLeftRadius: 20, borderTopRightRadius: 20,
+          borderWidth: 1, borderColor: colors.border,
+          padding: spacing.lg, paddingBottom: 32,
+          shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.3, shadowRadius: 12,
+          elevation: 20,
+        }}>
+          {/* Modal Handle */}
+          <View style={{ width: 40, height: 4, backgroundColor: colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 16 }} />
+
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <View>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: colors.textPrimary }}>
+                Table {selectedTable.tableNumber}
+              </Text>
+              <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>
+                {selectedTable.tableType} • {selectedTable.seatingCapacity} seats • Floor {selectedTable.floor}
+              </Text>
+            </View>
+            <View style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 99,
+              backgroundColor: (STATUS_CONFIG[selectedTable.status]?.bg || 'rgba(16,185,129,0.12)') }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: STATUS_CONFIG[selectedTable.status]?.color || colors.green }}>
+                {STATUS_CONFIG[selectedTable.status]?.emoji} {STATUS_CONFIG[selectedTable.status]?.label}
+              </Text>
+            </View>
+          </View>
+
+          {/* Primary Action */}
+          <TouchableOpacity
+            onPress={() => { setSelectedTable(null); navigation.navigate('TakeOrder', { table: selectedTable }); }}
+            style={{ backgroundColor: colors.green, borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 10 }}
+          >
+            <Text style={{ fontSize: 15, fontWeight: '800', color: '#000' }}>➕ Take Order for this Table</Text>
+          </TouchableOpacity>
+
+          {/* Status Change Buttons */}
+          <Text style={{ fontSize: 11, fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+            Change Table Status
+          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+            {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
+              <TouchableOpacity
+                key={key}
+                onPress={() => updateStatus(selectedTable._id, key)}
+                style={{
+                  flex: 1, minWidth: '44%', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10,
+                  backgroundColor: selectedTable.status === key ? cfg.bg : colors.bgCard,
+                  borderWidth: 1.5,
+                  borderColor: selectedTable.status === key ? cfg.color : colors.border,
+                  alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6,
+                }}
+              >
+                <Text style={{ fontSize: 14 }}>{cfg.emoji}</Text>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: selectedTable.status === key ? cfg.color : colors.textSecondary }}>
+                  {cfg.label}
+                </Text>
+                {selectedTable.status === key && <Text style={{ fontSize: 10, color: cfg.color }}>✓</Text>}
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Close */}
+          <TouchableOpacity
+            onPress={() => setSelectedTable(null)}
+            style={{ backgroundColor: colors.bgCard, borderRadius: 12, padding: 13, alignItems: 'center', borderWidth: 1, borderColor: colors.border }}
+          >
+            <Text style={{ fontSize: 14, fontWeight: '700', color: colors.textMuted }}>Close</Text>
+          </TouchableOpacity>
+        </View>
       )}
     </View>
   );

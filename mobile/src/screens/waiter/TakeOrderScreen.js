@@ -56,22 +56,31 @@ export default function TakeOrderScreen({ navigation, route }) {
   }, []);
 
   const placeOrder = async () => {
-    if (cartItems.length === 0) return Alert.alert('Empty', 'Add items first');
-    if (!table?._id) return Alert.alert('Error', 'No table selected');
+    if (cartItems.length === 0) return Alert.alert('Empty Cart', 'Please add items to your cart first');
+    if (!table?._id) return Alert.alert('No Table', 'Please select a table before placing an order');
     setPlacing(true);
     try {
       const res = await api.post('/orders', {
-        restaurantId,
         tableId: table._id,
-        items: cartItems.map(i => ({ menuItemId: i.menuItemId, name: i.name, price: i.price, quantity: i.quantity, notes: i.notes })),
+        tableNumber: table.tableNumber,
+        items: cartItems.map(i => ({
+          menuItemId: i.menuItemId,
+          name: i.name,
+          price: i.price,
+          quantity: i.quantity,
+          notes: i.notes || '',
+        })),
         notes,
         orderType: 'dine_in',
       });
-      await api.patch(`/tables/${table._id}/status`, { status: 'occupied', customerCount: 1 });
+      await api.patch(`/tables/${table._id}/status`, { status: 'occupied', customerCount: 1 }).catch(() => {});
       dispatch(clearCart());
-      Alert.alert('✅ Order Placed!', `Order #${res.data.data.orderNumber} sent to kitchen`, [{ text: 'OK', onPress: () => navigation.goBack() }]);
+      Alert.alert('✅ Order Placed!', `Order #${res.data.data?.orderNumber || ''} sent to kitchen`, [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
     } catch (err) {
-      Alert.alert('Error', err.response?.data?.message || 'Failed to place order');
+      const msg = err.response?.data?.message || err.message || 'Failed to place order. Please try again.';
+      Alert.alert('Order Failed', msg);
     } finally { setPlacing(false); }
   };
 
