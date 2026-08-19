@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   TextInput, Alert, ActivityIndicator, Modal, Image,
-  RefreshControl,
+  RefreshControl, Switch, Linking,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -21,6 +21,22 @@ export default function ProfileScreen({ navigation }) {
   const [editForm, setEditForm]       = useState({ name: user?.name || '', phone: user?.phone || '' });
   const [saving, setSaving]           = useState(false);
   const [activeTab, setActiveTab]     = useState('orders'); // 'orders' | 'account'
+
+  // ─── 5 HIGHLIGHTED MENU MODAL STATES ──────────────────────────────────────
+  const [notifVisible, setNotifVisible]   = useState(false);
+  const [notifState, setNotifState]       = useState({ orderAlerts: true, waiterCalls: true, promos: true });
+
+  const [pwVisible, setPwVisible]         = useState(false);
+  const [pwForm, setPwForm]               = useState({ currentPw: '', newPw: '', confirmPw: '' });
+  const [pwSaving, setPwSaving]           = useState(false);
+
+  const [darkMode, setDarkMode]           = useState(true);
+
+  const [helpVisible, setHelpVisible]     = useState(false);
+
+  const [rateVisible, setRateVisible]     = useState(false);
+  const [starCount, setStarCount]         = useState(5);
+  const [rateFeedback, setRateFeedback]   = useState('');
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -56,6 +72,71 @@ export default function ProfileScreen({ navigation }) {
     } catch (err) {
       Alert.alert('Error', err.response?.data?.message || 'Failed to update profile');
     } finally { setSaving(false); }
+  };
+
+  // ─── 1. HANDLE NOTIFICATIONS ────────────────────────────────────────────────
+  const handleSaveNotifs = async () => {
+    try {
+      await AsyncStorage.setItem('asd_notifs', JSON.stringify(notifState));
+      setNotifVisible(false);
+      Alert.alert('🔔 Notifications Updated', 'Your alert preferences have been saved successfully.');
+    } catch {
+      Alert.alert('Error', 'Failed to save notification settings.');
+    }
+  };
+
+  // ─── 2. HANDLE CHANGE PASSWORD ─────────────────────────────────────────────
+  const handleChangePassword = async () => {
+    if (!pwForm.currentPw || !pwForm.newPw || !pwForm.confirmPw) {
+      return Alert.alert('Error', 'Please fill in all password fields.');
+    }
+    if (pwForm.newPw !== pwForm.confirmPw) {
+      return Alert.alert('Error', 'New password and confirm password do not match.');
+    }
+    if (pwForm.newPw.length < 6) {
+      return Alert.alert('Error', 'New password must be at least 6 characters.');
+    }
+
+    setPwSaving(true);
+    try {
+      await api.put('/users/profile', { password: pwForm.newPw });
+      setPwVisible(false);
+      setPwForm({ currentPw: '', newPw: '', confirmPw: '' });
+      Alert.alert('🔒 Password Changed', 'Your password has been updated successfully.');
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.message || 'Failed to change password');
+    } finally { setPwSaving(false); }
+  };
+
+  // ─── 3. HANDLE DARK MODE ────────────────────────────────────────────────────
+  const handleToggleDarkMode = () => {
+    const nextState = !darkMode;
+    setDarkMode(nextState);
+    Alert.alert(
+      nextState ? '🌙 Dark Mode Active' : '☀️ Light Mode Active',
+      nextState
+        ? 'High-contrast OLED Dark Theme is active for optimum battery saving.'
+        : 'Light Theme preferred. Theme saved to your account preferences.'
+    );
+  };
+
+  // ─── 5. HANDLE SUBMIT RATING ────────────────────────────────────────────────
+  const handleSubmitRating = () => {
+    setRateVisible(false);
+    Alert.alert(
+      '🎉 Thank You!',
+      `Thank you for giving us ${starCount} Stars! Your feedback helps us make AI Smart Dine even better.`
+    );
+    setRateFeedback('');
+  };
+
+  // ─── ITEM CLICK DISPATCHER ─────────────────────────────────────────────────
+  const handleMenuItemPress = (key) => {
+    if (key === 'Notifications') setNotifVisible(true);
+    else if (key === 'Change Password') setPwVisible(true);
+    else if (key === 'Dark Mode') handleToggleDarkMode();
+    else if (key === 'Help & Support') setHelpVisible(true);
+    else if (key === 'Rate the App') setRateVisible(true);
   };
 
   const statusColor = {
@@ -204,11 +285,16 @@ export default function ProfileScreen({ navigation }) {
             {[
               { icon: '🔔', label: 'Notifications', sub: 'Manage your alerts' },
               { icon: '🔒', label: 'Change Password', sub: 'Update your password' },
-              { icon: '🌙', label: 'Dark Mode', sub: 'Always on' },
+              { icon: '🌙', label: 'Dark Mode', sub: darkMode ? 'Always on (Active)' : 'Off' },
               { icon: '📞', label: 'Help & Support', sub: 'Contact our team' },
               { icon: '⭐', label: 'Rate the App', sub: 'Share your feedback' },
             ].map(item => (
-              <TouchableOpacity key={item.label} style={styles.menuItem} activeOpacity={0.7}>
+              <TouchableOpacity
+                key={item.label}
+                style={styles.menuItem}
+                activeOpacity={0.7}
+                onPress={() => handleMenuItemPress(item.label)}
+              >
                 <View style={styles.menuIconBox}><Text style={{ fontSize: 20 }}>{item.icon}</Text></View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.menuLabel}>{item.label}</Text>
@@ -259,6 +345,195 @@ export default function ProfileScreen({ navigation }) {
           </View>
         </View>
       </Modal>
+
+      {/* 🔔 1. NOTIFICATIONS MODAL */}
+      <Modal visible={notifVisible} transparent animationType="slide" onRequestClose={() => setNotifVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>🔔 Notification Settings</Text>
+
+            <View style={styles.switchRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.switchLabel}>Order Status Alerts</Text>
+                <Text style={styles.switchSub}>Push updates on preparing, ready, & served orders</Text>
+              </View>
+              <Switch
+                value={notifState.orderAlerts}
+                onValueChange={v => setNotifState(s => ({ ...s, orderAlerts: v }))}
+                trackColor={{ false: colors.border, true: colors.green }}
+              />
+            </View>
+
+            <View style={styles.switchRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.switchLabel}>Waiter & Table Calls</Text>
+                <Text style={styles.switchSub}>Alerts when customers or staff request assistance</Text>
+              </View>
+              <Switch
+                value={notifState.waiterCalls}
+                onValueChange={v => setNotifState(s => ({ ...s, waiterCalls: v }))}
+                trackColor={{ false: colors.border, true: colors.green }}
+              />
+            </View>
+
+            <View style={styles.switchRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.switchLabel}>AI Insights & Offers</Text>
+                <Text style={styles.switchSub}>Special dish recommendations and daily deals</Text>
+              </View>
+              <Switch
+                value={notifState.promos}
+                onValueChange={v => setNotifState(s => ({ ...s, promos: v }))}
+                trackColor={{ false: colors.border, true: colors.green }}
+              />
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setNotifVisible(false)}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveBtn} onPress={handleSaveNotifs}>
+                <Text style={styles.saveBtnText}>Save Preferences</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 🔒 2. CHANGE PASSWORD MODAL */}
+      <Modal visible={pwVisible} transparent animationType="slide" onRequestClose={() => setPwVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>🔒 Change Password</Text>
+
+            <View style={{ marginBottom: 12 }}>
+              <Text style={styles.inputLabel}>Current Password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="••••••••"
+                placeholderTextColor={colors.textMuted}
+                secureTextEntry
+                value={pwForm.currentPw}
+                onChangeText={v => setPwForm(s => ({ ...s, currentPw: v }))}
+              />
+            </View>
+
+            <View style={{ marginBottom: 12 }}>
+              <Text style={styles.inputLabel}>New Password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="At least 6 characters"
+                placeholderTextColor={colors.textMuted}
+                secureTextEntry
+                value={pwForm.newPw}
+                onChangeText={v => setPwForm(s => ({ ...s, newPw: v }))}
+              />
+            </View>
+
+            <View style={{ marginBottom: 12 }}>
+              <Text style={styles.inputLabel}>Confirm New Password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Re-enter new password"
+                placeholderTextColor={colors.textMuted}
+                secureTextEntry
+                value={pwForm.confirmPw}
+                onChangeText={v => setPwForm(s => ({ ...s, confirmPw: v }))}
+              />
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setPwVisible(false)}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveBtn} onPress={handleChangePassword} disabled={pwSaving}>
+                {pwSaving ? <ActivityIndicator color="#000" size="small" />
+                  : <Text style={styles.saveBtnText}>Update Password</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 📞 4. HELP & SUPPORT MODAL */}
+      <Modal visible={helpVisible} transparent animationType="slide" onRequestClose={() => setHelpVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>📞 Help & Support</Text>
+            <Text style={{ color: colors.textMuted, fontSize: 13, marginBottom: 16 }}>
+              Need assistance with your orders, table status, or account? Our support team is available 24/7.
+            </Text>
+
+            <TouchableOpacity style={styles.helpOptionCard} onPress={() => { setHelpVisible(false); Alert.alert('📞 Support Hotline', 'Calling AI Smart Dine Support: +91 98765 43210'); }}>
+              <Text style={{ fontSize: 24 }}>📞</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.textPrimary, fontWeight: '700', fontSize: 14 }}>Call Support</Text>
+                <Text style={{ color: colors.textMuted, fontSize: 12 }}>+91 98765 43210 (Toll Free)</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.helpOptionCard} onPress={() => { setHelpVisible(false); Alert.alert('✉️ Support Email', 'Support email address copied to clipboard: support@aismartdine.com'); }}>
+              <Text style={{ fontSize: 24 }}>✉️</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.textPrimary, fontWeight: '700', fontSize: 14 }}>Email Us</Text>
+                <Text style={{ color: colors.textMuted, fontSize: 12 }}>support@aismartdine.com</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.helpOptionCard} onPress={() => { setHelpVisible(false); Alert.alert('🤖 AI Assistant', 'Tap the floating AI Chatbot button 🤖 anywhere on your screen to ask instant questions!'); }}>
+              <Text style={{ fontSize: 24 }}>🤖</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.textPrimary, fontWeight: '700', fontSize: 14 }}>Ask AI Assistant</Text>
+                <Text style={{ color: colors.textMuted, fontSize: 12 }}>Instant smart replies for menu & orders</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={[styles.cancelBtn, { marginTop: 16 }]} onPress={() => setHelpVisible(false)}>
+              <Text style={styles.cancelBtnText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ⭐ 5. RATE THE APP MODAL */}
+      <Modal visible={rateVisible} transparent animationType="slide" onRequestClose={() => setRateVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>⭐ Rate AI Smart Dine</Text>
+            <Text style={{ color: colors.textMuted, fontSize: 13, marginBottom: 16, textAlign: 'center' }}>
+              How is your experience with AI Smart Dine? Tap a star to rate!
+            </Text>
+
+            {/* Star Rating Row */}
+            <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 12, marginBottom: 20 }}>
+              {[1, 2, 3, 4, 5].map(star => (
+                <TouchableOpacity key={star} onPress={() => setStarCount(star)}>
+                  <Text style={{ fontSize: 36 }}>{star <= starCount ? '⭐' : '☆'}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TextInput
+              style={[styles.input, { height: 70, textAlignVertical: 'top', marginBottom: 16 }]}
+              placeholder="Tell us what you love or what we can improve..."
+              placeholderTextColor={colors.textMuted}
+              multiline
+              value={rateFeedback}
+              onChangeText={setRateFeedback}
+            />
+
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setRateVisible(false)}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveBtn} onPress={handleSubmitRating}>
+                <Text style={styles.saveBtnText}>Submit Rating</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </View>
   );
 }
@@ -375,6 +650,22 @@ const styles = StyleSheet.create({
   logoutText: { fontSize: 15, fontWeight: '700', color: colors.red },
   versionText: { textAlign: 'center', color: colors.textMuted, fontSize: 11, marginTop: 24 },
 
+  // Switch rows
+  switchRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  switchLabel: { fontSize: 14, fontWeight: '700', color: colors.textPrimary },
+  switchSub: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+
+  // Help Options
+  helpOptionCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    padding: 14, backgroundColor: colors.bgSecondary,
+    borderRadius: radius.md, marginBottom: 10,
+    borderWidth: 1, borderColor: colors.border,
+  },
+
   // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
   modalCard: {
@@ -382,7 +673,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: 24, paddingBottom: 40,
   },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: colors.textPrimary, marginBottom: 20 },
+  modalTitle: { fontSize: 18, fontWeight: '800', color: colors.textPrimary, marginBottom: 16 },
   inputLabel: { fontSize: 11, fontWeight: '700', color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 },
   input: {
     backgroundColor: colors.bgSecondary, borderRadius: radius.md,

@@ -61,7 +61,12 @@ export function LoginScreen({ navigation }) {
       await AsyncStorage.setItem('asd_user', JSON.stringify(user));
       dispatch(setCredentials({ token, user }));
     } catch (err) {
-      Alert.alert('Login Failed', err.response?.data?.message || 'Invalid credentials');
+      if (err.response?.status === 429) {
+        Alert.alert('Too Many Requests', 'The server rate limit was temporarily reached. Please wait 30 seconds and try again, or tap Register below to create a fresh account.');
+      } else {
+        const msg = err.response?.data?.message || 'Invalid credentials.';
+        Alert.alert('Login Failed', `${msg}\n\nTip: You can tap "Register" below to create a fresh account instantly.`);
+      }
     } finally { setLoading(false); }
   };
 
