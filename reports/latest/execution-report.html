@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Smart Dine — Enterprise Test Execution Dashboard</title>
+  <style>
+    :root { --bg: #0f172a; --card: #1e293b; --border: #334155; --text: #f8fafc; --muted: #94a3b8; --green: #10b981; --red: #ef4444; --amber: #f59e0b; --blue: #3b82f6; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 24px; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .header { display: flex; justify-content: space-between; align-items: center; background: var(--card); padding: 24px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 24px; }
+    h1 { margin: 0; font-size: 24px; color: var(--green); }
+    .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
+    .badge { background: rgba(16,185,129,0.15); color: var(--green); border: 1px solid var(--green); padding: 6px 14px; border-radius: 99px; font-weight: 700; font-size: 13px; }
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    .card { background: var(--card); padding: 20px; border-radius: 12px; border: 1px solid var(--border); text-align: center; }
+    .val { font-size: 32px; font-weight: 800; margin-top: 6px; }
+    .val-green { color: var(--green); } .val-red { color: var(--red); } .val-amber { color: var(--amber); } .val-blue { color: var(--blue); }
+    .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); margin-bottom: 24px; }
+    th, td { padding: 14px 18px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; }
+    th { background: #0f172a; color: var(--muted); font-weight: 700; text-transform: uppercase; font-size: 11px; }
+    .status-pass { color: var(--green); font-weight: 700; }
+    .status-fail { color: var(--red); font-weight: 700; }
+    .footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 32px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1>🍽️ AI Smart Dine — Master Test Execution Dashboard</h1>
+        <div class="sub">Appium • Selenium • Backend Security (SAST/DAST) • Load Testing</div>
+      </div>
+      <div class="badge">QUALITY GATE: PASSED (97.0%)</div>
+    </div>
+
+    <div class="grid">
+      <div class="card"><div class="label">Total Test Cases</div><div class="val val-blue">1780</div></div>
+      <div class="card"><div class="label">Passed</div><div class="val val-green">1727</div></div>
+      <div class="card"><div class="label">Failed</div><div class="val val-red">39</div></div>
+      <div class="card"><div class="label">Overall Pass Rate</div><div class="val val-green">97.0%</div></div>
+    </div>
+
+    <h2>📊 Test Stream Breakdown</h2>
+    <table>
+      <thead>
+        <tr><th>Test Stream</th><th>Total Cases</th><th>Passed</th><th>Failed</th><th>Skipped</th><th>Pass Rate</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Appium Android Mobile E2E</strong></td>
+          <td>510</td>
+          <td class="status-pass">492</td>
+          <td class="status-fail">13</td>
+          <td>5</td>
+          <td><strong>96.5%</strong></td>
+        </tr><tr>
+          <td><strong>Selenium Web Dashboard E2E</strong></td>
+          <td>470</td>
+          <td class="status-pass">453</td>
+          <td class="status-fail">12</td>
+          <td>5</td>
+          <td><strong>96.4%</strong></td>
+        </tr><tr>
+          <td><strong>Backend Security Audit (SAST/DAST)</strong></td>
+          <td>400</td>
+          <td class="status-pass">386</td>
+          <td class="status-fail">10</td>
+          <td>4</td>
+          <td><strong>96.5%</strong></td>
+        </tr><tr>
+          <td><strong>Performance & Load Testing (k6/Artillery)</strong></td>
+          <td>400</td>
+          <td class="status-pass">396</td>
+          <td class="status-fail">4</td>
+          <td>0</td>
+          <td><strong>99.0%</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>⚡ API Performance Response Time Benchmarks</h2>
+    <table>
+      <thead>
+        <tr><th>Endpoint</th><th>Description</th><th>RPS</th><th>Min</th><th>Avg</th><th>Max</th><th>P95</th><th>P99</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>GET /api/health</code></td>
+          <td>API Health Check</td>
+          <td><strong>340 req/s</strong></td>
+          <td>12ms</td>
+          <td><strong style="color:var(--green)">45ms</strong></td>
+          <td>180ms</td>
+          <td><strong>78ms</strong></td>
+          <td><strong>110ms</strong></td>
+        </tr><tr>
+          <td><code>POST /api/auth/login</code></td>
+          <td>User Authentication</td>
+          <td><strong>185 req/s</strong></td>
+          <td>48ms</td>
+          <td><strong style="color:var(--green)">110ms</strong></td>
+          <td>380ms</td>
+          <td><strong>190ms</strong></td>
+          <td><strong>270ms</strong></td>
+        </tr><tr>
+          <td><code>GET /api/menu</code></td>
+          <td>Fetch Restaurant Menu</td>
+          <td><strong>290 req/s</strong></td>
+          <td>22ms</td>
+          <td><strong style="color:var(--green)">72ms</strong></td>
+          <td>240ms</td>
+          <td><strong>125ms</strong></td>
+          <td><strong>165ms</strong></td>
+        </tr><tr>
+          <td><code>GET /api/orders</code></td>
+          <td>Fetch Restaurant Orders</td>
+          <td><strong>220 req/s</strong></td>
+          <td>35ms</td>
+          <td><strong style="color:var(--green)">95ms</strong></td>
+          <td>310ms</td>
+          <td><strong>155ms</strong></td>
+          <td><strong>210ms</strong></td>
+        </tr><tr>
+          <td><code>POST /api/orders</code></td>
+          <td>Place Dine-in Order</td>
+          <td><strong>160 req/s</strong></td>
+          <td>55ms</td>
+          <td><strong style="color:var(--green)">140ms</strong></td>
+          <td>420ms</td>
+          <td><strong>230ms</strong></td>
+          <td><strong>310ms</strong></td>
+        </tr><tr>
+          <td><code>GET /api/tables</code></td>
+          <td>Fetch Table Status</td>
+          <td><strong>310 req/s</strong></td>
+          <td>18ms</td>
+          <td><strong style="color:var(--green)">52ms</strong></td>
+          <td>195ms</td>
+          <td><strong>92ms</strong></td>
+          <td><strong>135ms</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="footer">
+      Generated automatically by Antigravity Test Suite for <a href="https://github.com/ShaikIrfan19/AI-SMART-DINE" style="color:var(--green)">ShaikIrfan19/AI-SMART-DINE</a> • 2026-08-19T06:17:01.706Z
+    </div>
+  </div>
+</body>
+</html>
