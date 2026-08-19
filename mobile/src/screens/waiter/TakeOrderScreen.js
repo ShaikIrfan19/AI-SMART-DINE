@@ -25,16 +25,18 @@ export default function TakeOrderScreen({ navigation, route }) {
   const [notes, setNotes] = useState('');
   const [placing, setPlacing] = useState(false);
 
-  const restaurantId = user?.restaurantId?._id || user?.restaurantId;
+  const restaurantId = user?.restaurantId?._id || user?.restaurantId || user?.id;
 
   useEffect(() => {
     const fetch = async () => {
       try {
-        const params = new URLSearchParams({ restaurantId, isAvailable: 'true' });
-        if (category !== 'all') params.set('category', category);
-        if (search) params.set('search', search);
+        const params = new URLSearchParams({});
+        if (restaurantId && restaurantId !== 'undefined') params.set('restaurantId', restaurantId);
+        params.set('isAvailable', 'true');
+        if (category && category !== 'all') params.set('category', category);
+        if (search && search.trim() !== '') params.set('search', search.trim());
         const res = await api.get(`/menu?${params}`);
-        setMenuItems(res.data.data);
+        setMenuItems(res.data.data || []);
       } catch {} finally { setLoading(false); }
     };
     fetch();

@@ -171,6 +171,7 @@ export function AdminMenuScreen() {
   const [loading, setLoading]   = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [category, setCategory] = useState('all');
+  const [search, setSearch]     = useState('');
   const [showAdd, setShowAdd]   = useState(false);
   const [form, setForm]         = useState({ name: '', price: '', category: 'starters', description: '', isVeg: true });
 
@@ -180,12 +181,13 @@ export function AdminMenuScreen() {
   const fetchMenu = useCallback(async () => {
     try {
       const params = new URLSearchParams({});
-      if (restaurantId) params.set('restaurantId', restaurantId);
-      if (category !== 'all') params.set('category', category);
+      if (restaurantId && restaurantId !== 'undefined') params.set('restaurantId', restaurantId);
+      if (category && category !== 'all') params.set('category', category);
+      if (search && search.trim() !== '') params.set('search', search.trim());
       const res = await api.get(`/menu?${params}`);
       setItems(res.data.data || []);
     } catch {} finally { setLoading(false); setRefreshing(false); }
-  }, [category, restaurantId]);
+  }, [category, search, restaurantId]);
 
   useEffect(() => {
     fetchMenu();
@@ -200,7 +202,7 @@ export function AdminMenuScreen() {
     }
 
     try {
-      const res = await api.post('/menu', {
+      await api.post('/menu', {
         restaurantId,
         name: form.name,
         price: Number(form.price),
@@ -208,10 +210,10 @@ export function AdminMenuScreen() {
         description: form.description,
         isVeg: form.isVeg,
       });
-      setItems(prev => [res.data.data, ...prev]);
       setShowAdd(false);
       setForm({ name: '', price: '', category: 'starters', description: '', isVeg: true });
-      Alert.alert('✅ Success', 'Item added successfully');
+      fetchMenu(); // Re-fetch entire menu from database
+      Alert.alert('✅ Success', 'Item added to persistent menu database!');
     } catch (err) { Alert.alert('Error', err.response?.data?.message || 'Failed to add item'); }
   };
 
@@ -242,12 +244,30 @@ export function AdminMenuScreen() {
           <Text style={styles.addBtnText}>+ Add Item</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Search Input */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: spacing.md, marginTop: spacing.sm, marginBottom: 4, backgroundColor: colors.bgCard, borderRadius: radius.md, paddingHorizontal: spacing.md, borderWidth: 1, borderColor: colors.border }}>
+        <Text>🔍</Text>
+        <TextInput
+          style={{ flex: 1, paddingVertical: 9, color: colors.textPrimary, fontSize: 13 }}
+          placeholder="Search menu items..."
+          placeholderTextColor={colors.textMuted}
+          value={search}
+          onChangeText={setSearch}
+        />
+        {search.length > 0 && (
+          <TouchableOpacity onPress={() => setSearch('')}>
+            <Text style={{ color: colors.textMuted, fontSize: 14 }}>✕</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
       <FlatList
         horizontal
         data={CATS}
         keyExtractor={c => c}
         showsHorizontalScrollIndicator={false}
-        style={{ maxHeight: 48, flexGrow: 0 }}
+        style={{ maxHeight: 44, flexGrow: 0, marginVertical: 4 }}
         contentContainerStyle={{ paddingHorizontal: spacing.md, gap: 8, alignItems: 'center' }}
         renderItem={({ item: c }) => (
           <TouchableOpacity onPress={() => setCategory(c)}

@@ -93,24 +93,26 @@ export default function CustomerHomeScreen({ navigation }) {
   const [search, setSearch] = useState('');
   const [restaurant, setRestaurant] = useState(null);
 
-  const restaurantId = user?.restaurantId?._id || user?.restaurantId;
+  const restaurantId = user?.restaurantId?._id || user?.restaurantId || user?.id;
   const cartCount = cartItems.reduce((s, i) => s + i.quantity, 0);
   const cartTotal = cartItems.reduce((s, i) => s + i.totalPrice, 0);
 
   const fetchMenu = useCallback(async () => {
-    if (!restaurantId) return setLoading(false);
     try {
-      const params = new URLSearchParams({ restaurantId, isAvailable: 'true' });
-      if (category !== 'all') params.set('category', category);
-      if (search) params.set('search', search);
-      const [menuRes, restRes] = await Promise.all([
-        api.get(`/menu?${params}`),
-        api.get(`/restaurants/${restaurantId}`),
-      ]);
-      setMenuItems(menuRes.data.data);
-      setRestaurant(restRes.data.data);
+      const params = new URLSearchParams({});
+      if (restaurantId && restaurantId !== 'undefined') params.set('restaurantId', restaurantId);
+      params.set('isAvailable', 'true');
+      if (category && category !== 'all') params.set('category', category);
+      if (search && search.trim() !== '') params.set('search', search.trim());
+      const menuRes = await api.get(`/menu?${params}`);
+      setMenuItems(menuRes.data.data || []);
+      if (restaurantId && restaurantId !== 'undefined') {
+        try {
+          const restRes = await api.get(`/restaurants/${restaurantId}`);
+          setRestaurant(restRes.data.data);
+        } catch {}
+      }
     } catch (e) {
-      Alert.alert('Error', 'Failed to load menu');
     } finally {
       setLoading(false);
       setRefreshing(false);
