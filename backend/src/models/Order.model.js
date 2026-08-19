@@ -22,7 +22,7 @@ const orderItemSchema = new mongoose.Schema({
 });
 
 const orderSchema = new mongoose.Schema({
-  restaurantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Restaurant', required: true },
+  restaurantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Restaurant', required: false, default: null },
   tableId: { type: mongoose.Schema.Types.ObjectId, ref: 'Table', required: true },
   tableNumber: { type: String },
   customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },

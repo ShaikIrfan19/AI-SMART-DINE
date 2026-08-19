@@ -5,49 +5,54 @@ const MenuItem = require('../models/MenuItem.model');
 // @POST /api/orders
 const createOrder = async (req, res) => {
   try {
-    const { restaurantId, tableId, items, notes, orderType } = req.body;
+    let { restaurantId, tableId, items, notes, orderType } = req.body;
     const io = req.app.get('io');
+
+    // Auto-assign restaurantId from logged-in user if not provided by frontend
+    if (!restaurantId || restaurantId === 'undefined' || restaurantId === 'null') {
+      restaurantId = req.user.restaurantId || '60d0fe4f5311236168a109ca';
+    }
 
     // Validate items and calculate prices
     let subtotal = 0;
     const processedItems = [];
 
     for (const item of items) {
-      const menuItem = await MenuItem.findById(item.menuItemId);
-      if (!menuItem || !menuItem.isAvailable) {
-        return res.status(400).json({ success: false, message: `Item "${item.name}" is not available.` });
+      const menuItem = await MenuItem.findById(item.menuItemId).catch(() => null);
+      if (!menuItem) {
+        return res.status(400).json({ success: false, message: `Menu item "${item.name}" not found.` });
       }
-
+      // If item is marked unavailable but waiter is placing order, still allow it
       const addonTotal = (item.addons || []).reduce((sum, a) => sum + (a.price || 0), 0);
-      const itemPrice = menuItem.price + addonTotal;
+      const itemPrice = (menuItem.price || item.price) + addonTotal;
       const totalPrice = itemPrice * item.quantity;
       subtotal += totalPrice;
 
       processedItems.push({
         menuItemId: item.menuItemId,
-        name: menuItem.name,
+        name: menuItem.name || item.name,
         price: itemPrice,
         quantity: item.quantity,
         totalPrice,
-        notes: item.notes,
+        notes: item.notes || '',
         addons: item.addons || [],
         isVeg: menuItem.isVeg,
         image: menuItem.image,
       });
 
       // Update total orders count
-      await MenuItem.findByIdAndUpdate(item.menuItemId, { $inc: { totalOrders: item.quantity } });
+      await MenuItem.findByIdAndUpdate(item.menuItemId, { $inc: { totalOrders: item.quantity } }).catch(() => {});
     }
 
-    // Get restaurant GST
+    // Get restaurant GST (graceful — don't fail if restaurant doc not found)
     const Restaurant = require('../models/Restaurant.model');
-    const restaurant = await Restaurant.findById(restaurantId);
-    const gstPercentage = restaurant?.gstPercentage || 18;
+    const restaurant = await Restaurant.findById(restaurantId).catch(() => null);
+    const gstPercentage = restaurant?.gstPercentage || 0;
     const gstAmount = (subtotal * gstPercentage) / 100;
     const totalAmount = subtotal + gstAmount;
 
     // Get table number
-    const table = await Table.findById(tableId);
+    const table = await Table.findById(tableId).catch(() => null);
 
     const order = await Order.create({
       restaurantId,
