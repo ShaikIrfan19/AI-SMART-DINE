@@ -60,7 +60,15 @@ export default function TakeOrderScreen({ navigation, route }) {
     if (!table?._id) return Alert.alert('No Table', 'Please select a table before placing an order');
     setPlacing(true);
     try {
+      // Use restaurantId from loaded menu items (actual DB value) or user or shared default
+      const restaurantId =
+        allMenuItems[0]?.restaurantId ||
+        user?.restaurantId?._id ||
+        user?.restaurantId ||
+        '60d0fe4f5311236168a109ca';
+
       const res = await api.post('/orders', {
+        restaurantId,
         tableId: table._id,
         tableNumber: table.tableNumber,
         items: cartItems.map(i => ({
