@@ -40,11 +40,13 @@ router.get('/', protect, async (req, res) => {
 
     let items = await MenuItem.find(filter).sort({ sortOrder: 1, createdAt: -1 }).limit(limit * 1);
     
-    // Fallback: If filtered query yielded 0 items because of restaurantId or isAvailable mismatch, fetch all items in DB
-    if (items.length === 0) {
-      delete filter.restaurantId;
-      delete filter.isAvailable;
-      items = await MenuItem.find(filter).sort({ sortOrder: 1, createdAt: -1 }).limit(limit * 1);
+    // Fallback: If 0 items returned due to restaurantId or isAvailable mismatch,
+    // retry WITHOUT those filters but KEEP category/search filters intact
+    if (items.length === 0 && (filter.restaurantId || filter.isAvailable !== undefined)) {
+      const fallbackFilter = { ...filter };
+      delete fallbackFilter.restaurantId;
+      delete fallbackFilter.isAvailable;
+      items = await MenuItem.find(fallbackFilter).sort({ sortOrder: 1, createdAt: -1 }).limit(limit * 1);
     }
 
     res.json({ success: true, data: items, total: items.length });

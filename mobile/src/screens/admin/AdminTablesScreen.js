@@ -177,6 +177,24 @@ export function AdminMenuScreen() {
 
   const CATS = ['all','starters','main_course','desserts','drinks','combos','snacks'];
 
+  // Human-readable labels for category keys
+  const CAT_LABELS = {
+    all: 'All',
+    starters: 'Starters',
+    main_course: 'Main Course',
+    desserts: 'Desserts',
+    drinks: 'Drinks',
+    combos: 'Combos',
+    snacks: 'Snacks',
+  };
+
+  // Helper: convert raw DB category string to display label
+  const catLabel = (cat) => {
+    if (!cat) return '';
+    const key = cat.toLowerCase().replace(/ /g, '_');
+    return CAT_LABELS[key] || cat.charAt(0).toUpperCase() + cat.slice(1);
+  };
+
   const fetchMenu = useCallback(async () => {
     try {
       const params = new URLSearchParams({});
@@ -201,7 +219,6 @@ export function AdminMenuScreen() {
 
     try {
       const res = await api.post('/menu', {
-        restaurantId,
         name: form.name,
         price: Number(form.price),
         category: finalCategory,
@@ -278,7 +295,7 @@ export function AdminMenuScreen() {
           <TouchableOpacity onPress={() => setCategory(c)}
             style={[styles.catChip, category === c && styles.catChipActive]}>
             <Text style={[styles.catText, category === c && styles.catTextActive]}>
-              {c.replace('_', ' ').toUpperCase()}
+              {CAT_LABELS[c] || c}
             </Text>
           </TouchableOpacity>
         )}
@@ -296,7 +313,7 @@ export function AdminMenuScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.menuName} numberOfLines={1}>{item.name}</Text>
-                <Text style={styles.menuCat}>{item.category?.replace('_', ' ')} • {item.isVeg ? 'Veg' : 'Non-Veg'}</Text>
+                <Text style={styles.menuCat}>{catLabel(item.category)} • {item.isVeg ? 'Veg' : 'Non-Veg'}</Text>
                 <View style={{ flexDirection: 'row', gap: 8, marginTop: 2 }}>
                   <Text style={styles.menuPrice}>₹{item.price}</Text>
                   {item.isPopular && <Text style={{ fontSize: 11, color: colors.amber }}>🔥 Popular</Text>}

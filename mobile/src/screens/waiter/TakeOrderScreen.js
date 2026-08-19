@@ -8,7 +8,17 @@ import { addItem, clearCart, selectCartTotal, selectCartCount } from '../../stor
 import api from '../../services/api';
 import { colors, spacing, radius, shadows } from '../../theme';
 
-const CATEGORIES = ['all', 'starters', 'main_course', 'desserts', 'drinks', 'combos'];
+const CATEGORIES = ['all', 'starters', 'main_course', 'desserts', 'drinks', 'combos', 'snacks'];
+
+const CAT_LABELS = {
+  all: 'All',
+  starters: 'Starters',
+  main_course: 'Main Course',
+  desserts: 'Desserts',
+  drinks: 'Drinks',
+  combos: 'Combos',
+  snacks: 'Snacks',
+};
 
 export default function TakeOrderScreen({ navigation, route }) {
   const { table } = route.params || {};
@@ -90,7 +100,9 @@ export default function TakeOrderScreen({ navigation, route }) {
         {CATEGORIES.map(c => (
           <TouchableOpacity key={c} onPress={() => setCategory(c)}
             style={{ paddingHorizontal: 14, paddingVertical: 7, borderRadius: 99, backgroundColor: category === c ? colors.green : colors.bgCard, borderWidth: 1, borderColor: category === c ? colors.green : colors.border }}>
-            <Text style={{ fontSize: 12, fontWeight: '700', color: category === c ? '#000' : colors.textMuted, textTransform: 'capitalize' }}>{c.replace('_', ' ')}</Text>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: category === c ? '#000' : colors.textMuted }}>
+                {CAT_LABELS[c] || c}
+              </Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
