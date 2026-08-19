@@ -1,0 +1,23 @@
+config:
+  target: 'https://ai-smart-dine-backend.onrender.com'
+  phases:
+    - duration: 60
+      arrivalRate: 10
+      rampTo: 100
+      name: "Ramp up to 100 VUs Baseline Load"
+  defaults:
+    headers:
+      Content-Type: "application/json"
+
+scenarios:
+  - name: "API Load Testing Flow"
+    flow:
+      - get:
+          url: "/api/health"
+      - get:
+          url: "/api/menu"
+      - post:
+          url: "/api/auth/login"
+          json:
+            email: "admin@restaurant.com"
+            password: "Admin@123"

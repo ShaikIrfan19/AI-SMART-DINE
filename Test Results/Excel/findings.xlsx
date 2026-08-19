@@ -1,0 +1,4 @@
+﻿Finding ID,Severity,Vulnerability Type,OWASP Category,CWE ID,Endpoint / Source File,Impact,Status
+"SEC-001","High","Rate Limiting Omission on Live Server","A04:2021 - Insecure Design","CWE-770","/api/auth/login","Potential brute-force vulnerability if unthrottled","REMEDIATED"
+"SEC-002","Medium","Missing Security Headers","A05:2021 - Security Misconfiguration","CWE-693","Express Middleware","Missing Strict-Transport-Security & X-Content-Type-Options","REMEDIATED"
+"SEC-003","Low","Verbose Stack Trace on Error 500","A05:2021 - Security Misconfiguration","CWE-209","/api/orders","Information leakage in debug mode","REMEDIATED"

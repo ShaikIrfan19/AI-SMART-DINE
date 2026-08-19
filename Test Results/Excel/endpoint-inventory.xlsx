@@ -1,0 +1,10 @@
+﻿Endpoint,HTTP Method,Auth Required,Expected Roles,Controller File
+"/api/health","GET","No","Public","server.js"
+"/api/auth/register","POST","No","Public","auth.controller.js"
+"/api/auth/login","POST","No","Public","auth.controller.js"
+"/api/menu","GET","Yes","All Roles","menu.routes.js"
+"/api/menu","POST","Yes","Admin/Waiter","menu.routes.js"
+"/api/orders","GET","Yes","Admin/Waiter/Customer","order.controller.js"
+"/api/orders","POST","Yes","Admin/Waiter/Customer","order.controller.js"
+"/api/tables","GET","Yes","Admin/Waiter","table.controller.js"
+"/api/users/profile","PUT","Yes","All Roles","user.routes.js"

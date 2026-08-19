@@ -1,0 +1,44 @@
+name: Live GitHub Pages Deployment & Selenium E2E Test Suite
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  deploy-and-selenium-test:
+    runs-on: ubuntu-latest
+    env:
+      BASE_URL: https://ShaikIrfan19.github.io/AI-SMART-DINE/
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run E2E Selenium Test Suite & Report Generator
+        run: |
+          node testing/reporting/master-report-generator.js
+          node testing/reporting/excel-report-generator.js
+
+      - name: Deploy Live Web Dashboard to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./Test Results/HTML
+          destination_dir: reports/latest
+
+      - name: Publish Summary to GitHub Actions
+        run: |
+          cat "Test Results/Summary/summary.md" >> $GITHUB_STEP_SUMMARY
