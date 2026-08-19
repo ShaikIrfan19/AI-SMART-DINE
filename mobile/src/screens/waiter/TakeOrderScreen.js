@@ -28,28 +28,32 @@ export default function TakeOrderScreen({ navigation, route }) {
   const cartTotal = useSelector(selectCartTotal);
   const cartCount = useSelector(selectCartCount);
 
-  const [menuItems, setMenuItems] = useState([]);
+  const [allMenuItems, setAllMenuItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState('all');
   const [search, setSearch] = useState('');
   const [notes, setNotes] = useState('');
   const [placing, setPlacing] = useState(false);
 
-  const restaurantId = user?.restaurantId?._id || user?.restaurantId || user?.id;
+  // Client-side filter — works instantly regardless of backend version
+  const menuItems = allMenuItems.filter(item => {
+    const catKey = (item.category || '').toLowerCase().replace(/ /g, '_');
+    const matchesCat = category === 'all' || catKey === category;
+    const matchesSearch = !search.trim() ||
+      item.name?.toLowerCase().includes(search.trim().toLowerCase());
+    return matchesCat && matchesSearch;
+  });
 
   useEffect(() => {
-    const fetch = async () => {
+    const fetchAll = async () => {
       setLoading(true);
       try {
-        const params = new URLSearchParams({});
-        if (category && category !== 'all') params.set('category', category);
-        if (search && search.trim() !== '') params.set('search', search.trim());
-        const res = await api.get(`/menu?${params}`);
-        setMenuItems(res.data.data || []);
+        const res = await api.get('/menu');
+        setAllMenuItems(res.data.data || []);
       } catch {} finally { setLoading(false); }
     };
-    fetch();
-  }, [category, search]);
+    fetchAll();
+  }, []);
 
   const placeOrder = async () => {
     if (cartItems.length === 0) return Alert.alert('Empty', 'Add items first');

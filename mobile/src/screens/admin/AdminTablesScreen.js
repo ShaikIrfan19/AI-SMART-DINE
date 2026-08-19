@@ -195,15 +195,27 @@ export function AdminMenuScreen() {
     return CAT_LABELS[key] || cat.charAt(0).toUpperCase() + cat.slice(1);
   };
 
+  // allItems = full list from DB, items = filtered view shown on screen
+  const [allItems, setAllItems] = useState([]);
+
+  // Client-side filter: apply category + search on allItems
+  const filteredItems = allItems.filter(item => {
+    const catKey = (item.category || '').toLowerCase().replace(/ /g, '_');
+    const matchesCat = category === 'all' || catKey === category;
+    const matchesSearch = !search.trim() ||
+      item.name?.toLowerCase().includes(search.trim().toLowerCase());
+    return matchesCat && matchesSearch;
+  });
+
+  // Fetch ALL items from backend once (no server-side category filter)
   const fetchMenu = useCallback(async () => {
     try {
-      const params = new URLSearchParams({});
-      if (category && category !== 'all') params.set('category', category);
-      if (search && search.trim() !== '') params.set('search', search.trim());
-      const res = await api.get(`/menu?${params}`);
-      setItems(res.data.data || []);
+      const res = await api.get('/menu');
+      const data = res.data.data || [];
+      setAllItems(data);
+      setItems(data);
     } catch {} finally { setLoading(false); setRefreshing(false); }
-  }, [category, search]);
+  }, []);
 
   useEffect(() => {
     fetchMenu();
@@ -228,11 +240,11 @@ export function AdminMenuScreen() {
       
       const newItem = res.data.data;
       if (newItem) {
+        setAllItems(prev => [newItem, ...prev.filter(i => i._id !== newItem._id)]);
         setItems(prev => [newItem, ...prev.filter(i => i._id !== newItem._id)]);
       }
       setShowAdd(false);
       setForm({ name: '', price: '', category: 'starters', description: '', isVeg: true });
-      fetchMenu(); // Re-fetch entire menu from database
       Alert.alert('✅ Success', `Item "${form.name}" added successfully!`);
     } catch (err) {
       Alert.alert('Error', err.response?.data?.message || err.message || 'Failed to add item');
@@ -242,7 +254,9 @@ export function AdminMenuScreen() {
   const toggleAvailability = async (id, current) => {
     try {
       await api.patch(`/menu/${id}/availability`);
-      setItems(prev => prev.map(i => i._id === id ? { ...i, isAvailable: !current } : i));
+      const update = prev => prev.map(i => i._id === id ? { ...i, isAvailable: !current } : i);
+      setAllItems(update);
+      setItems(update);
     } catch { Alert.alert('Error', 'Failed to update availability'); }
   };
 
@@ -252,7 +266,9 @@ export function AdminMenuScreen() {
       { text: 'Delete', style: 'destructive', onPress: async () => {
         try {
           await api.delete(`/menu/${id}`);
-          setItems(prev => prev.filter(i => i._id !== id));
+          const remove = prev => prev.filter(i => i._id !== id);
+          setAllItems(remove);
+          setItems(remove);
         } catch { Alert.alert('Error', 'Failed to delete item'); }
       }},
     ]);
@@ -261,7 +277,7 @@ export function AdminMenuScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Menu Management ({items.length})</Text>
+        <Text style={styles.headerTitle}>Menu Management ({filteredItems.length})</Text>
         <TouchableOpacity style={styles.addBtn} onPress={() => setShowAdd(true)}>
           <Text style={styles.addBtnText}>+ Add Item</Text>
         </TouchableOpacity>
@@ -302,10 +318,18 @@ export function AdminMenuScreen() {
       />
       {loading ? <View style={styles.centered}><ActivityIndicator color={colors.green} /></View> : (
         <FlatList
-          data={items}
+          data={filteredItems}
           keyExtractor={i => i._id}
           contentContainerStyle={{ padding: spacing.md, paddingBottom: 24 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchMenu(); }} tintColor={colors.green} />}
+          ListEmptyComponent={
+            <View style={{ alignItems: 'center', marginTop: 60 }}>
+              <Text style={{ fontSize: 40 }}>🍽️</Text>
+              <Text style={{ color: colors.textMuted, marginTop: 8, fontSize: 14 }}>
+                {category === 'all' ? 'No menu items yet' : `No items in ${CAT_LABELS[category]}`}
+              </Text>
+            </View>
+          }
           renderItem={({ item }) => (
             <View style={[styles.menuCard, !item.isAvailable && { opacity: 0.55 }]}>
               <View style={styles.menuEmoji}>
