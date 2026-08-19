@@ -175,19 +175,17 @@ export function AdminMenuScreen() {
   const [showAdd, setShowAdd]   = useState(false);
   const [form, setForm]         = useState({ name: '', price: '', category: 'starters', description: '', isVeg: true });
 
-  const restaurantId = user?.restaurantId?._id || user?.restaurantId || user?.id;
   const CATS = ['all','starters','main_course','desserts','drinks','combos','snacks'];
 
   const fetchMenu = useCallback(async () => {
     try {
       const params = new URLSearchParams({});
-      if (restaurantId && restaurantId !== 'undefined') params.set('restaurantId', restaurantId);
       if (category && category !== 'all') params.set('category', category);
       if (search && search.trim() !== '') params.set('search', search.trim());
       const res = await api.get(`/menu?${params}`);
       setItems(res.data.data || []);
     } catch {} finally { setLoading(false); setRefreshing(false); }
-  }, [category, search, restaurantId]);
+  }, [category, search]);
 
   useEffect(() => {
     fetchMenu();

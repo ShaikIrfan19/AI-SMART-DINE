@@ -9,7 +9,7 @@ router.get('/', protect, async (req, res) => {
     const { restaurantId, category, isVeg, isAvailable, search, page = 1, limit = 200 } = req.query;
     const filter = {};
 
-    // Filter by restaurant if valid
+    // Filter by restaurant only if valid and not empty
     if (restaurantId && restaurantId !== 'undefined' && restaurantId !== 'null') {
       filter.restaurantId = restaurantId;
     }
@@ -40,14 +40,9 @@ router.get('/', protect, async (req, res) => {
 
     let items = await MenuItem.find(filter).sort({ sortOrder: 1, createdAt: -1 }).limit(limit * 1);
     
-    // Fallback 1: If restaurantId filter yielded 0 items, fetch without restaurantId restriction
-    if (items.length === 0 && filter.restaurantId) {
+    // Fallback: If filtered query yielded 0 items because of restaurantId or isAvailable mismatch, fetch all items in DB
+    if (items.length === 0) {
       delete filter.restaurantId;
-      items = await MenuItem.find(filter).sort({ sortOrder: 1, createdAt: -1 }).limit(limit * 1);
-    }
-
-    // Fallback 2: If isAvailable filter yielded 0 items, fetch without isAvailable restriction
-    if (items.length === 0 && filter.isAvailable !== undefined) {
       delete filter.isAvailable;
       items = await MenuItem.find(filter).sort({ sortOrder: 1, createdAt: -1 }).limit(limit * 1);
     }
@@ -59,7 +54,7 @@ router.get('/', protect, async (req, res) => {
 // POST create menu item
 router.post('/', protect, authorize('restaurant_admin', 'super_admin', 'waiter'), async (req, res) => {
   try {
-    let { restaurantId, name, price, category, description, isVeg, image } = req.body;
+    let { name, price, category, description, isVeg, image } = req.body;
     if (!name || !price) {
       return res.status(400).json({ success: false, message: 'Name and price are required' });
     }
@@ -75,9 +70,8 @@ router.post('/', protect, authorize('restaurant_admin', 'super_admin', 'waiter')
     const validCats = ['starters', 'main_course', 'desserts', 'drinks', 'combos', 'breads', 'soups', 'salads', 'snacks'];
     if (!validCats.includes(normCat)) normCat = 'starters';
 
-    const targetRestaurantId = (restaurantId && restaurantId !== 'undefined' && restaurantId !== 'null')
-      ? restaurantId
-      : (req.user.restaurantId || req.user._id);
+    // Shared restaurant ID across all staff accounts
+    const targetRestaurantId = req.user.restaurantId || '60d0fe4f5311236168a109ca';
 
     const item = await MenuItem.create({
       restaurantId: targetRestaurantId,

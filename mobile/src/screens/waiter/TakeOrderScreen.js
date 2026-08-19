@@ -32,7 +32,6 @@ export default function TakeOrderScreen({ navigation, route }) {
       setLoading(true);
       try {
         const params = new URLSearchParams({});
-        if (restaurantId && restaurantId !== 'undefined') params.set('restaurantId', restaurantId);
         if (category && category !== 'all') params.set('category', category);
         if (search && search.trim() !== '') params.set('search', search.trim());
         const res = await api.get(`/menu?${params}`);
@@ -40,7 +39,7 @@ export default function TakeOrderScreen({ navigation, route }) {
       } catch {} finally { setLoading(false); }
     };
     fetch();
-  }, [category, search, restaurantId]);
+  }, [category, search]);
 
   const placeOrder = async () => {
     if (cartItems.length === 0) return Alert.alert('Empty', 'Add items first');
