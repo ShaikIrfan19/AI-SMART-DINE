@@ -51,7 +51,7 @@ router.get('/', protect, async (req, res) => {
 });
 
 // POST create menu item
-router.post('/', protect, authorize('restaurant_admin', 'super_admin'), async (req, res) => {
+router.post('/', protect, authorize('restaurant_admin', 'super_admin', 'waiter'), async (req, res) => {
   try {
     let { restaurantId, name, price, category, description, isVeg, image } = req.body;
     if (!name || !price) {
@@ -89,7 +89,7 @@ router.post('/', protect, authorize('restaurant_admin', 'super_admin'), async (r
 });
 
 // PUT update menu item
-router.put('/:id', protect, authorize('restaurant_admin', 'super_admin'), async (req, res) => {
+router.put('/:id', protect, authorize('restaurant_admin', 'super_admin', 'waiter'), async (req, res) => {
   try {
     if (req.body.category) {
       let normCat = req.body.category.toLowerCase().trim().replace(/ /g, '_');
@@ -110,7 +110,7 @@ router.put('/:id', protect, authorize('restaurant_admin', 'super_admin'), async 
 });
 
 // PATCH toggle availability
-router.patch('/:id/availability', protect, authorize('restaurant_admin', 'super_admin'), async (req, res) => {
+router.patch('/:id/availability', protect, authorize('restaurant_admin', 'super_admin', 'waiter'), async (req, res) => {
   try {
     const item = await MenuItem.findById(req.params.id);
     if (!item) return res.status(404).json({ success: false, message: 'Item not found' });
@@ -121,7 +121,7 @@ router.patch('/:id/availability', protect, authorize('restaurant_admin', 'super_
 });
 
 // DELETE menu item
-router.delete('/:id', protect, authorize('restaurant_admin', 'super_admin'), async (req, res) => {
+router.delete('/:id', protect, authorize('restaurant_admin', 'super_admin', 'waiter'), async (req, res) => {
   try {
     await MenuItem.findByIdAndDelete(req.params.id);
     res.json({ success: true, message: 'Item deleted' });

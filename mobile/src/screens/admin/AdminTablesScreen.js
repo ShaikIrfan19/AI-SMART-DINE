@@ -202,7 +202,7 @@ export function AdminMenuScreen() {
     }
 
     try {
-      await api.post('/menu', {
+      const res = await api.post('/menu', {
         restaurantId,
         name: form.name,
         price: Number(form.price),
@@ -210,11 +210,18 @@ export function AdminMenuScreen() {
         description: form.description,
         isVeg: form.isVeg,
       });
+      
+      const newItem = res.data.data;
+      if (newItem) {
+        setItems(prev => [newItem, ...prev.filter(i => i._id !== newItem._id)]);
+      }
       setShowAdd(false);
       setForm({ name: '', price: '', category: 'starters', description: '', isVeg: true });
       fetchMenu(); // Re-fetch entire menu from database
-      Alert.alert('✅ Success', 'Item added to persistent menu database!');
-    } catch (err) { Alert.alert('Error', err.response?.data?.message || 'Failed to add item'); }
+      Alert.alert('✅ Success', `Item "${form.name}" added successfully!`);
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.message || err.message || 'Failed to add item');
+    }
   };
 
   const toggleAvailability = async (id, current) => {
