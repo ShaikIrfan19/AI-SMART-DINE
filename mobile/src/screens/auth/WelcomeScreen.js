@@ -51,7 +51,7 @@ export function LoginScreen({ navigation }) {
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async () => {
+  const handleLogin = async (retries = 0) => {
     if (!email || !password) return Alert.alert('Error', 'Please enter email and password');
     setLoading(true);
     try {
@@ -61,11 +61,14 @@ export function LoginScreen({ navigation }) {
       await AsyncStorage.setItem('asd_user', JSON.stringify(user));
       dispatch(setCredentials({ token, user }));
     } catch (err) {
-      if (err.response?.status === 429) {
-        Alert.alert('Too Many Requests', 'The server rate limit was temporarily reached. Please wait 30 seconds and try again, or tap Register below to create a fresh account.');
+      if (err.response?.status === 429 && retries < 3) {
+        // Auto-retry silently after a short delay — no popup shown
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        setLoading(false);
+        return handleLogin(retries + 1);
       } else {
-        const msg = err.response?.data?.message || 'Invalid credentials.';
-        Alert.alert('Login Failed', `${msg}\n\nTip: You can tap "Register" below to create a fresh account instantly.`);
+        const msg = err.response?.data?.message || 'Login failed. Please check your credentials.';
+        Alert.alert('Login Failed', msg);
       }
     } finally { setLoading(false); }
   };

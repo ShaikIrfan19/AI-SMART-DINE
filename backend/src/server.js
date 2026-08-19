@@ -10,6 +10,10 @@ require('dotenv').config();
 const app = express();
 const server = http.createServer(app);
 
+// Trust Render's reverse proxy so real client IPs are detected correctly
+// Without this, ALL requests look like they come from one IP → instant rate limit block
+app.set('trust proxy', 1);
+
 // Socket.IO setup
 const io = socketIO(server, {
   cors: {
@@ -20,6 +24,23 @@ const io = socketIO(server, {
 
 // Make io available globally
 app.set('io', io);
+
+// Very permissive rate limiter — prevents Render platform blocking while still protecting against abuse
+// 10,000 requests per 15 minutes per IP (normal app usage is ~200-300 per hour)
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.path === '/api/health', // never rate-limit health checks
+  handler: (req, res) => {
+    res.status(429).json({
+      success: false,
+      message: 'Too many requests. Please wait a moment and try again.',
+    });
+  },
+});
+app.use(limiter);
 
 // Security Middleware
 // CORS & Security
