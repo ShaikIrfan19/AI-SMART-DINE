@@ -40,9 +40,15 @@ router.get('/', protect, async (req, res) => {
 
     let items = await MenuItem.find(filter).sort({ sortOrder: 1, createdAt: -1 }).limit(limit * 1);
     
-    // Fallback: If restaurantId filter yielded 0 items, fetch all items matching other filters so Admin & Waiter never get stuck empty
+    // Fallback 1: If restaurantId filter yielded 0 items, fetch without restaurantId restriction
     if (items.length === 0 && filter.restaurantId) {
       delete filter.restaurantId;
+      items = await MenuItem.find(filter).sort({ sortOrder: 1, createdAt: -1 }).limit(limit * 1);
+    }
+
+    // Fallback 2: If isAvailable filter yielded 0 items, fetch without isAvailable restriction
+    if (items.length === 0 && filter.isAvailable !== undefined) {
+      delete filter.isAvailable;
       items = await MenuItem.find(filter).sort({ sortOrder: 1, createdAt: -1 }).limit(limit * 1);
     }
 

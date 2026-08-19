@@ -29,10 +29,10 @@ export default function TakeOrderScreen({ navigation, route }) {
 
   useEffect(() => {
     const fetch = async () => {
+      setLoading(true);
       try {
         const params = new URLSearchParams({});
         if (restaurantId && restaurantId !== 'undefined') params.set('restaurantId', restaurantId);
-        params.set('isAvailable', 'true');
         if (category && category !== 'all') params.set('category', category);
         if (search && search.trim() !== '') params.set('search', search.trim());
         const res = await api.get(`/menu?${params}`);
