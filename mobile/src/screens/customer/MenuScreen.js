@@ -84,12 +84,31 @@ export default function MenuScreen() {
   const fetchMenu = useCallback(async () => {
     setFetchError(null);
     try {
-      let res = await api.get('/menu');
-      let data = res.data?.data || [];
+      // Strategy 1: Plain GET /menu
+      let res = await api.get('/menu').catch(() => null);
+      let data = res?.data?.data || [];
 
+      // Strategy 2: Query with shared restaurantId
       if (!data.length) {
-        res = await api.get('/menu?limit=200').catch(() => null);
-        data = res?.data?.data || data;
+        res = await api.get(`/menu?restaurantId=${SHARED_RESTAURANT_ID}`).catch(() => null);
+        data = res?.data?.data || [];
+      }
+
+      // Strategy 3: Query with isAvailable=true
+      if (!data.length) {
+        res = await api.get('/menu?isAvailable=true').catch(() => null);
+        data = res?.data?.data || [];
+      }
+
+      // Strategy 4: Query with restaurantId & isAvailable=true
+      if (!data.length) {
+        res = await api.get(`/menu?restaurantId=${SHARED_RESTAURANT_ID}&isAvailable=true`).catch(() => null);
+        data = res?.data?.data || [];
+      }
+
+      // Strategy 5: Direct array or items property
+      if (!data.length && res?.data) {
+        data = res.data.items || (Array.isArray(res.data) ? res.data : []);
       }
 
       setAllMenuItems(data);
