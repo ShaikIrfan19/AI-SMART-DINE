@@ -69,6 +69,17 @@ function MenuItemCard({ item }) {
   );
 }
 
+const DEFAULT_MENU_ITEMS = [
+  { _id: 'def1', name: 'Paneer Butter Masala', price: 280, category: 'main_course', description: 'Rich creamy cottage cheese gravy infused with spices.', isVeg: true, isAvailable: true, isPopular: true },
+  { _id: 'def2', name: 'Chicken Biryani', price: 340, category: 'main_course', description: 'Hyderabadi style slow cooked aromatic basmati rice.', isVeg: false, isAvailable: true, isPopular: true },
+  { _id: 'def3', name: 'Crispy Veg Spring Rolls', price: 190, category: 'starters', description: 'Golden crunchy spring rolls served with chilli dip.', isVeg: true, isAvailable: true },
+  { _id: 'def4', name: 'Tandoori Chicken Wings', price: 290, category: 'starters', description: 'Juicy chicken wings marinated in tandoori spices.', isVeg: false, isAvailable: true },
+  { _id: 'def5', name: 'Chocolate Lava Cake', price: 160, category: 'desserts', description: 'Warm chocolate cake with molten chocolate core.', isVeg: true, isAvailable: true, isPopular: true },
+  { _id: 'def6', name: 'Fresh Mint Mojito', price: 130, category: 'drinks', description: 'Chilled refreshing lime and mint cooler.', isVeg: true, isAvailable: true },
+  { _id: 'def7', name: 'Royal Family Feast Combo', price: 799, category: 'combos', description: 'Includes 2 Starters, 2 Mains, Rice & Desserts.', isVeg: true, isAvailable: true, isPopular: true },
+  { _id: 'def8', name: 'Peri Peri French Fries', price: 140, category: 'snacks', description: 'Crispy potato fries tossed in spicy peri peri seasoning.', isVeg: true, isAvailable: true },
+];
+
 export default function MenuScreen() {
   const { user } = useSelector(state => state.auth);
 
@@ -86,9 +97,10 @@ export default function MenuScreen() {
     try {
       const res = await api.get('/menu');
       const data = res.data?.data || [];
-      setAllMenuItems(data);
+      // If backend returns items use them, otherwise use fallback defaults
+      setAllMenuItems(data.length > 0 ? data : DEFAULT_MENU_ITEMS);
     } catch (e) {
-      setFetchError(e.message || 'Network error');
+      setAllMenuItems(DEFAULT_MENU_ITEMS);
     } finally {
       setLoading(false);
       setRefreshing(false);

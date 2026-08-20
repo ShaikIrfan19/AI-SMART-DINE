@@ -36,6 +36,15 @@ const PROMO_BANNERS = [
 
 import socket from '../../services/socket';
 
+const DEFAULT_MENU_ITEMS = [
+  { _id: 'def1', name: 'Paneer Butter Masala', price: 280, category: 'main_course', description: 'Rich creamy cottage cheese gravy infused with spices.', isVeg: true, isAvailable: true, isPopular: true },
+  { _id: 'def2', name: 'Chicken Biryani', price: 340, category: 'main_course', description: 'Hyderabadi style slow cooked aromatic basmati rice.', isVeg: false, isAvailable: true, isPopular: true },
+  { _id: 'def3', name: 'Crispy Veg Spring Rolls', price: 190, category: 'starters', description: 'Golden crunchy spring rolls served with chilli dip.', isVeg: true, isAvailable: true },
+  { _id: 'def4', name: 'Tandoori Chicken Wings', price: 290, category: 'starters', description: 'Juicy chicken wings marinated in tandoori spices.', isVeg: false, isAvailable: true },
+  { _id: 'def5', name: 'Chocolate Lava Cake', price: 160, category: 'desserts', description: 'Warm chocolate cake with molten chocolate core.', isVeg: true, isAvailable: true, isPopular: true },
+  { _id: 'def6', name: 'Fresh Mint Mojito', price: 130, category: 'drinks', description: 'Chilled refreshing lime and mint cooler.', isVeg: true, isAvailable: true },
+];
+
 export default function CustomerHomeScreen({ navigation }) {
   const { user } = useSelector(state => state.auth);
   const [popularItems, setPopularItems] = useState([]);
@@ -47,11 +56,12 @@ export default function CustomerHomeScreen({ navigation }) {
   const fetchPopularDishes = useCallback(async () => {
     try {
       const res = await api.get('/menu');
-      const items = res.data?.data || [];
+      const data = res.data?.data || [];
+      const items = data.length > 0 ? data : DEFAULT_MENU_ITEMS;
       const popular = items.filter(i => i.isPopular || i.isBestSeller).concat(items).slice(0, 6);
       setPopularItems(popular);
     } catch (e) {
-      setPopularItems([]);
+      setPopularItems(DEFAULT_MENU_ITEMS);
     } finally {
       setLoading(false);
       setRefreshing(false);
