@@ -84,44 +84,33 @@ export default function MenuScreen() {
   const fetchMenu = useCallback(async () => {
     setFetchError(null);
     try {
-      // Strategy 1: Plain GET /menu
-      let res = await api.get('/menu').catch(() => null);
-      let data = res?.data?.data || [];
+      // Fast parallel requests with 6s timeout max!
+      const [res1, tabRes] = await Promise.all([
+        api.get('/menu', { timeout: 6000 }).catch(() => null),
+        api.get('/tables', { timeout: 6000 }).catch(() => null),
+      ]);
 
-      // Strategy 2: Discover Admin's restaurantId from /tables endpoint (works on old Render backend)
+      let data = res1?.data?.data || [];
+
+      // If plain /menu returned data, use immediately!
       if (!data.length) {
-        try {
-          const tabRes = await api.get('/tables');
-          const foundTables = tabRes?.data?.data || [];
-          const foundRid = foundTables[0]?.restaurantId?._id || foundTables[0]?.restaurantId;
-          if (foundRid) {
-            res = await api.get(`/menu?restaurantId=${foundRid}`).catch(() => null);
-            data = res?.data?.data || [];
-          }
-        } catch {}
+        const foundTables = tabRes?.data?.data || [];
+        const foundRid = foundTables[0]?.restaurantId?._id || foundTables[0]?.restaurantId;
+        if (foundRid) {
+          const res2 = await api.get(`/menu?restaurantId=${foundRid}`, { timeout: 6000 }).catch(() => null);
+          data = res2?.data?.data || [];
+        }
       }
 
-      // Strategy 3: Query with shared restaurantId
+      // Fast fallback to shared ID
       if (!data.length) {
-        res = await api.get(`/menu?restaurantId=${SHARED_RESTAURANT_ID}`).catch(() => null);
-        data = res?.data?.data || [];
-      }
-
-      // Strategy 4: Query with isAvailable=true
-      if (!data.length) {
-        res = await api.get('/menu?isAvailable=true').catch(() => null);
-        data = res?.data?.data || [];
-      }
-
-      // Strategy 5: Direct array or items property
-      if (!data.length && res?.data) {
-        data = res.data.items || (Array.isArray(res.data) ? res.data : []);
+        const res3 = await api.get(`/menu?restaurantId=${SHARED_RESTAURANT_ID}`, { timeout: 6000 }).catch(() => null);
+        data = res3?.data?.data || [];
       }
 
       setAllMenuItems(data);
     } catch (e) {
-      const errMsg = e.response?.data?.message || e.message || 'Network error';
-      setFetchError(errMsg);
+      setFetchError(e.message || 'Error loading menu');
     } finally {
       setLoading(false);
       setRefreshing(false);

@@ -46,31 +46,25 @@ export default function CustomerHomeScreen({ navigation }) {
 
   const fetchPopularDishes = useCallback(async () => {
     try {
-      let res = await api.get('/menu').catch(() => null);
-      let items = res?.data?.data || [];
+      const [res1, tabRes] = await Promise.all([
+        api.get('/menu', { timeout: 6000 }).catch(() => null),
+        api.get('/tables', { timeout: 6000 }).catch(() => null),
+      ]);
+
+      let items = res1?.data?.data || [];
 
       if (!items.length) {
-        try {
-          const tabRes = await api.get('/tables');
-          const foundTables = tabRes?.data?.data || [];
-          const foundRid = foundTables[0]?.restaurantId?._id || foundTables[0]?.restaurantId;
-          if (foundRid) {
-            res = await api.get(`/menu?restaurantId=${foundRid}`).catch(() => null);
-            items = res?.data?.data || [];
-          }
-        } catch {}
+        const foundTables = tabRes?.data?.data || [];
+        const foundRid = foundTables[0]?.restaurantId?._id || foundTables[0]?.restaurantId;
+        if (foundRid) {
+          const res2 = await api.get(`/menu?restaurantId=${foundRid}`, { timeout: 6000 }).catch(() => null);
+          items = res2?.data?.data || [];
+        }
       }
 
       if (!items.length) {
-        res = await api.get(`/menu?restaurantId=${SHARED_RESTAURANT_ID}`).catch(() => null);
-        items = res?.data?.data || [];
-      }
-      if (!items.length) {
-        res = await api.get('/menu?isAvailable=true').catch(() => null);
-        items = res?.data?.data || [];
-      }
-      if (!items.length && res?.data) {
-        items = res.data.items || (Array.isArray(res.data) ? res.data : []);
+        const res3 = await api.get(`/menu?restaurantId=${SHARED_RESTAURANT_ID}`, { timeout: 6000 }).catch(() => null);
+        items = res3?.data?.data || [];
       }
 
       const popular = items.filter(i => i.isPopular || i.isBestSeller).concat(items).slice(0, 6);
