@@ -46,27 +46,8 @@ export default function CustomerHomeScreen({ navigation }) {
 
   const fetchPopularDishes = useCallback(async () => {
     try {
-      const [res1, tabRes] = await Promise.all([
-        api.get('/menu', { timeout: 6000 }).catch(() => null),
-        api.get('/tables', { timeout: 6000 }).catch(() => null),
-      ]);
-
-      let items = res1?.data?.data || [];
-
-      if (!items.length) {
-        const foundTables = tabRes?.data?.data || [];
-        const foundRid = foundTables[0]?.restaurantId?._id || foundTables[0]?.restaurantId;
-        if (foundRid) {
-          const res2 = await api.get(`/menu?restaurantId=${foundRid}`, { timeout: 6000 }).catch(() => null);
-          items = res2?.data?.data || [];
-        }
-      }
-
-      if (!items.length) {
-        const res3 = await api.get(`/menu?restaurantId=${SHARED_RESTAURANT_ID}`, { timeout: 6000 }).catch(() => null);
-        items = res3?.data?.data || [];
-      }
-
+      const res = await api.get('/menu');
+      const items = res.data?.data || [];
       const popular = items.filter(i => i.isPopular || i.isBestSeller).concat(items).slice(0, 6);
       setPopularItems(popular);
     } catch (e) {

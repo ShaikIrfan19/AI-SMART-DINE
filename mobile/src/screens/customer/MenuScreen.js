@@ -84,33 +84,11 @@ export default function MenuScreen() {
   const fetchMenu = useCallback(async () => {
     setFetchError(null);
     try {
-      // Fast parallel requests with 6s timeout max!
-      const [res1, tabRes] = await Promise.all([
-        api.get('/menu', { timeout: 6000 }).catch(() => null),
-        api.get('/tables', { timeout: 6000 }).catch(() => null),
-      ]);
-
-      let data = res1?.data?.data || [];
-
-      // If plain /menu returned data, use immediately!
-      if (!data.length) {
-        const foundTables = tabRes?.data?.data || [];
-        const foundRid = foundTables[0]?.restaurantId?._id || foundTables[0]?.restaurantId;
-        if (foundRid) {
-          const res2 = await api.get(`/menu?restaurantId=${foundRid}`, { timeout: 6000 }).catch(() => null);
-          data = res2?.data?.data || [];
-        }
-      }
-
-      // Fast fallback to shared ID
-      if (!data.length) {
-        const res3 = await api.get(`/menu?restaurantId=${SHARED_RESTAURANT_ID}`, { timeout: 6000 }).catch(() => null);
-        data = res3?.data?.data || [];
-      }
-
+      const res = await api.get('/menu');
+      const data = res.data?.data || [];
       setAllMenuItems(data);
     } catch (e) {
-      setFetchError(e.message || 'Error loading menu');
+      setFetchError(e.message || 'Network error');
     } finally {
       setLoading(false);
       setRefreshing(false);
