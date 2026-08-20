@@ -9,8 +9,9 @@ router.get('/', protect, async (req, res) => {
     const { restaurantId, category, isVeg, isAvailable, search, page = 1, limit = 200 } = req.query;
     const filter = {};
 
-    // Filter by restaurant only if valid and not empty
-    if (restaurantId && restaurantId !== 'undefined' && restaurantId !== 'null') {
+    // For customer users or requests without specific restaurantId, don't restrict by restaurantId
+    // so customers always see the complete menu created by Admin
+    if (req.user.role !== 'customer' && restaurantId && restaurantId !== 'undefined' && restaurantId !== 'null') {
       filter.restaurantId = restaurantId;
     }
 
@@ -40,13 +41,9 @@ router.get('/', protect, async (req, res) => {
 
     let items = await MenuItem.find(filter).sort({ sortOrder: 1, createdAt: -1 }).limit(limit * 1);
     
-    // Fallback: If 0 items returned due to restaurantId or isAvailable mismatch,
-    // retry WITHOUT those filters but KEEP category/search filters intact
-    if (items.length === 0 && (filter.restaurantId || filter.isAvailable !== undefined)) {
-      const fallbackFilter = { ...filter };
-      delete fallbackFilter.restaurantId;
-      delete fallbackFilter.isAvailable;
-      items = await MenuItem.find(fallbackFilter).sort({ sortOrder: 1, createdAt: -1 }).limit(limit * 1);
+    // Fallback: If 0 items returned, fetch all items unconditionally
+    if (items.length === 0) {
+      items = await MenuItem.find({}).sort({ sortOrder: 1, createdAt: -1 }).limit(limit * 1);
     }
 
     res.json({ success: true, data: items, total: items.length });

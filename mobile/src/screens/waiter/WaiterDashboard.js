@@ -63,20 +63,24 @@ export function WaiterDashboard({ navigation }) {
   useEffect(() => {
     checkStatusAndFetchData();
 
-    // Socket listener for real-time waiter calls from customer
+    // Socket listener for real-time waiter calls, table updates & reservations from customer
     const handleWaiterCall = (payload) => {
-      console.log('🔔 [WaiterDashboard] Real-time waiter_called event received:', payload);
+      console.log('🔔 [WaiterDashboard] Real-time socket event received:', payload);
       checkStatusAndFetchData();
     };
 
     socket.on('waiter_called', handleWaiterCall);
     socket.on('waiter-call-alert', handleWaiterCall);
+    socket.on('table_updated', handleWaiterCall);
+    socket.on('reservation_created', handleWaiterCall);
 
     const t = setInterval(checkStatusAndFetchData, 4000);
     return () => {
       clearInterval(t);
       socket.off('waiter_called', handleWaiterCall);
       socket.off('waiter-call-alert', handleWaiterCall);
+      socket.off('table_updated', handleWaiterCall);
+      socket.off('reservation_created', handleWaiterCall);
     };
   }, [checkStatusAndFetchData]);
 
@@ -324,7 +328,22 @@ export function WaiterTablesScreen({ navigation }) {
     } catch {} finally { setLoading(false); setRefreshing(false); }
   }, [user]);
 
-  useEffect(() => { fetchTables(); }, [fetchTables]);
+  useEffect(() => {
+    fetchTables();
+
+    const handleTableUpdate = (payload) => {
+      console.log('📡 [WaiterTablesScreen] Real-time table_updated event:', payload);
+      fetchTables();
+    };
+
+    socket.on('table_updated', handleTableUpdate);
+    socket.on('reservation_created', handleTableUpdate);
+
+    return () => {
+      socket.off('table_updated', handleTableUpdate);
+      socket.off('reservation_created', handleTableUpdate);
+    };
+  }, [fetchTables]);
 
   const updateStatus = async (tableId, status) => {
     try {

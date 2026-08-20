@@ -6,17 +6,49 @@ const { protect, authorize } = require('../middleware/auth.middleware');
 const reservationRouter = express.Router();
 reservationRouter.use(protect);
 
+const Table = require('../models/Table.model');
+
 reservationRouter.post('/', async (req, res) => {
   try {
     let { restaurantId, date, timeSlot, guestCount, tableType, specialRequests } = req.body;
     if (!restaurantId || restaurantId === 'undefined' || restaurantId === 'null') {
       restaurantId = req.user.restaurantId || '60d0fe4f5311236168a109ca';
     }
+
+    // Try to find an available table to assign to this reservation
+    let table = await Table.findOne({ status: 'available' });
+    if (!table) {
+      // Fallback to any table if none is strictly available
+      table = await Table.findOne({});
+    }
+
+    if (table) {
+      table.status = 'reserved';
+      table.reservedFor = date ? new Date(date) : new Date();
+      await table.save();
+    }
+
     const reservation = await Reservation.create({
       ...req.body,
       restaurantId,
       customerId: req.user._id,
+      tableId: table ? table._id : null,
     });
+
+    const io = req.app.get('io');
+    if (io) {
+      console.log(`📡 Emitting reservation_created & table_updated for table ${table?.tableNumber}`);
+      io.emit('reservation_created', reservation);
+      if (table) {
+        io.emit('table_updated', { tableId: table._id, status: 'reserved' });
+      }
+      io.emit('waiter-call-alert', {
+        tableNumber: table?.tableNumber || 'Table 1',
+        customerName: req.user.name || 'Customer',
+        message: `🗓 Table ${table?.tableNumber || '1'} reserved by ${req.user.name || 'Customer'} (${timeSlot || 'Tonight'})`,
+      });
+    }
+
     res.status(201).json({ success: true, data: reservation });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
