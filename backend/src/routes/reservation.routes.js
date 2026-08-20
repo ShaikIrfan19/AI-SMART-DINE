@@ -18,11 +18,21 @@ reservationRouter.post('/', async (req, res) => {
     // Try to find an available table to assign to this reservation
     let table = await Table.findOne({ status: 'available' });
     if (!table) {
-      // Fallback to any table if none is strictly available
       table = await Table.findOne({});
     }
 
-    if (table) {
+    if (!table) {
+      // If no table exists in database, automatically create/add a new table!
+      const totalCount = await Table.countDocuments();
+      table = await Table.create({
+        restaurantId,
+        tableNumber: String(totalCount + 1),
+        seatingCapacity: Number(guestCount) || 4,
+        tableType: tableType || 'regular',
+        status: 'reserved',
+        reservedFor: date ? new Date(date) : new Date(),
+      });
+    } else {
       table.status = 'reserved';
       table.reservedFor = date ? new Date(date) : new Date();
       await table.save();
@@ -40,7 +50,7 @@ reservationRouter.post('/', async (req, res) => {
       console.log(`📡 Emitting reservation_created & table_updated for table ${table?.tableNumber}`);
       io.emit('reservation_created', reservation);
       if (table) {
-        io.emit('table_updated', { tableId: table._id, status: 'reserved' });
+        io.emit('table_updated', table);
       }
       io.emit('waiter-call-alert', {
         tableNumber: table?.tableNumber || 'Table 1',
