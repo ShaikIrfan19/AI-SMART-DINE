@@ -34,6 +34,8 @@ const PROMO_BANNERS = [
   },
 ];
 
+import socket from '../../services/socket';
+
 export default function CustomerHomeScreen({ navigation }) {
   const { user } = useSelector(state => state.auth);
   const [popularItems, setPopularItems] = useState([]);
@@ -63,9 +65,29 @@ export default function CustomerHomeScreen({ navigation }) {
 
   useEffect(() => {
     fetchPopularDishes();
+
+    const handleMenuUpdate = () => fetchPopularDishes();
+    socket.on('menu_updated', handleMenuUpdate);
+    socket.on('menu_item_added', handleMenuUpdate);
+    socket.on('menu_item_updated', handleMenuUpdate);
+    socket.on('menu_item_deleted', handleMenuUpdate);
+
+    return () => {
+      socket.off('menu_updated', handleMenuUpdate);
+      socket.off('menu_item_added', handleMenuUpdate);
+      socket.off('menu_item_updated', handleMenuUpdate);
+      socket.off('menu_item_deleted', handleMenuUpdate);
+    };
   }, [fetchPopularDishes]);
 
   const handleCallWaiter = async () => {
+    console.log('🔔 [CustomerHomeScreen] Emitting call_waiter socket event...');
+    socket.emit('call_waiter', {
+      restaurantId: SHARED_RESTAURANT_ID,
+      tableNumber: 'Table 1',
+      customerName: user?.name || 'Customer',
+      message: `${user?.name || 'Customer'} called for a waiter at Table 1`,
+    });
     try {
       await api.post('/notifications/call-waiter', {
         restaurantId: SHARED_RESTAURANT_ID,

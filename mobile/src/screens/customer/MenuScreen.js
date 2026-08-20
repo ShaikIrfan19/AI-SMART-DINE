@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import api from '../../services/api';
+import socket from '../../services/socket';
 import { colors, spacing, radius } from '../../theme';
 
 const CATEGORIES = [
@@ -18,6 +19,7 @@ const CATEGORIES = [
 ];
 
 function MenuItemCard({ item }) {
+  const isUnavailable = item.isAvailable === false;
   const CAT_LABELS = {
     all: 'All', starters: 'Starters', main_course: 'Main Course',
     desserts: 'Desserts', drinks: 'Drinks', combos: 'Combos', snacks: 'Snacks',
@@ -29,25 +31,38 @@ function MenuItemCard({ item }) {
   };
 
   return (
-    <View style={styles.menuCard}>
+    <View style={[styles.menuCard, isUnavailable && { opacity: 0.5 }]}>
       <View style={styles.menuImageBox}>
         <Text style={styles.menuEmoji}>{item.isVeg ? '🥗' : '🍗'}</Text>
-        {item.isPopular && <View style={styles.hotBadge}><Text style={styles.hotBadgeText}>🔥 HOT</Text></View>}
+        {item.isPopular && !isUnavailable && <View style={styles.hotBadge}><Text style={styles.hotBadgeText}>🔥 HOT</Text></View>}
+        {isUnavailable && (
+          <View style={[styles.hotBadge, { backgroundColor: '#555' }]}>
+            <Text style={styles.hotBadgeText}>OUT OF STOCK</Text>
+          </View>
+        )}
       </View>
       <View style={styles.menuInfo}>
-        <Text style={styles.menuName} numberOfLines={1}>{item.name}</Text>
+        <Text style={[styles.menuName, isUnavailable && { textDecorationLine: 'line-through' }]} numberOfLines={1}>
+          {item.name}
+        </Text>
         <Text style={styles.menuCat}>{catLabel(item.category)}</Text>
         {item.description ? (
           <Text style={styles.menuDesc} numberOfLines={2}>{item.description}</Text>
         ) : null}
         <View style={styles.menuBottom}>
           <Text style={styles.menuPrice}>₹{item.price}</Text>
-          <View style={[styles.vegBadge, { backgroundColor: item.isVeg ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)' }]}>
-            <View style={[styles.vegDot, { backgroundColor: item.isVeg ? '#10b981' : '#ef4444' }]} />
-            <Text style={[styles.vegText, { color: item.isVeg ? '#10b981' : '#ef4444' }]}>
-              {item.isVeg ? 'Veg' : 'Non-Veg'}
-            </Text>
-          </View>
+          {isUnavailable ? (
+            <View style={[styles.vegBadge, { backgroundColor: 'rgba(85,85,85,0.2)' }]}>
+              <Text style={[styles.vegText, { color: colors.textMuted }]}>Unavailable</Text>
+            </View>
+          ) : (
+            <View style={[styles.vegBadge, { backgroundColor: item.isVeg ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)' }]}>
+              <View style={[styles.vegDot, { backgroundColor: item.isVeg ? '#10b981' : '#ef4444' }]} />
+              <Text style={[styles.vegText, { color: item.isVeg ? '#10b981' : '#ef4444' }]}>
+                {item.isVeg ? 'Veg' : 'Non-Veg'}
+              </Text>
+            </View>
+          )}
         </View>
       </View>
     </View>
@@ -69,11 +84,9 @@ export default function MenuScreen() {
   const fetchMenu = useCallback(async () => {
     setFetchError(null);
     try {
-      // 1. Plain GET /menu — EXACT SAME call used by Admin & Waiter!
       let res = await api.get('/menu');
       let data = res.data?.data || [];
 
-      // 2. Fallback if empty: try with limit=200
       if (!data.length) {
         res = await api.get('/menu?limit=200').catch(() => null);
         data = res?.data?.data || data;
@@ -91,8 +104,34 @@ export default function MenuScreen() {
 
   useEffect(() => {
     fetchMenu();
-    const timer = setInterval(fetchMenu, 15000); // refresh every 15s to stay in sync with Admin additions
-    return () => clearInterval(timer);
+
+    // Socket listener for real-time menu updates (create, update, delete)
+    const handleMenuUpdate = (payload) => {
+      console.log('📡 [Customer MenuScreen] Real-time menu_updated event received:', payload);
+      if (payload?.action === 'create' && payload.data) {
+        setAllMenuItems(prev => [payload.data, ...prev.filter(i => i._id !== payload.data._id)]);
+      } else if (payload?.action === 'update' && payload.data) {
+        setAllMenuItems(prev => prev.map(i => i._id === payload.data._id ? payload.data : i));
+      } else if (payload?.action === 'delete' && payload.id) {
+        setAllMenuItems(prev => prev.filter(i => i._id !== payload.id));
+      } else {
+        fetchMenu();
+      }
+    };
+
+    socket.on('menu_updated', handleMenuUpdate);
+    socket.on('menu_item_added', fetchMenu);
+    socket.on('menu_item_updated', fetchMenu);
+    socket.on('menu_item_deleted', fetchMenu);
+
+    const timer = setInterval(fetchMenu, 15000);
+    return () => {
+      clearInterval(timer);
+      socket.off('menu_updated', handleMenuUpdate);
+      socket.off('menu_item_added', fetchMenu);
+      socket.off('menu_item_updated', fetchMenu);
+      socket.off('menu_item_deleted', fetchMenu);
+    };
   }, [fetchMenu]);
 
   const menuItems = allMenuItems.filter(item => {
@@ -104,6 +143,13 @@ export default function MenuScreen() {
   });
 
   const handleCallWaiter = async () => {
+    console.log('🔔 [Customer] Emitting call_waiter socket event...');
+    socket.emit('call_waiter', {
+      restaurantId: SHARED_RESTAURANT_ID,
+      tableNumber: 'Table 1',
+      customerName: user?.name || 'Customer',
+      message: `${user?.name || 'Customer'} called for a waiter at Table 1`,
+    });
     try {
       await api.post('/notifications/call-waiter', {
         restaurantId: SHARED_RESTAURANT_ID,

@@ -86,6 +86,13 @@ router.post('/', protect, authorize('restaurant_admin', 'super_admin', 'waiter')
       image: image || null,
     });
 
+    const io = req.app.get('io');
+    if (io) {
+      console.log(`📡 Emitting menu_updated (create) for ${item.name}`);
+      io.emit('menu_updated', { action: 'create', data: item });
+      io.to(`restaurant:${targetRestaurantId}`).emit('menu_updated', { action: 'create', data: item });
+    }
+
     res.status(201).json({ success: true, data: item });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -107,6 +114,13 @@ router.put('/:id', protect, authorize('restaurant_admin', 'super_admin', 'waiter
     const item = await MenuItem.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!item) return res.status(404).json({ success: false, message: 'Item not found' });
 
+    const io = req.app.get('io');
+    if (io) {
+      console.log(`📡 Emitting menu_updated (update) for ${item.name}`);
+      io.emit('menu_updated', { action: 'update', data: item });
+      io.to(`restaurant:${item.restaurantId}`).emit('menu_updated', { action: 'update', data: item });
+    }
+
     res.json({ success: true, data: item });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -118,6 +132,14 @@ router.patch('/:id/availability', protect, authorize('restaurant_admin', 'super_
     if (!item) return res.status(404).json({ success: false, message: 'Item not found' });
     item.isAvailable = !item.isAvailable;
     await item.save();
+
+    const io = req.app.get('io');
+    if (io) {
+      console.log(`📡 Emitting menu_updated (availability) for ${item.name}: ${item.isAvailable}`);
+      io.emit('menu_updated', { action: 'update', data: item });
+      io.to(`restaurant:${item.restaurantId}`).emit('menu_updated', { action: 'update', data: item });
+    }
+
     res.json({ success: true, data: { isAvailable: item.isAvailable } });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -125,7 +147,17 @@ router.patch('/:id/availability', protect, authorize('restaurant_admin', 'super_
 // DELETE menu item
 router.delete('/:id', protect, authorize('restaurant_admin', 'super_admin', 'waiter'), async (req, res) => {
   try {
-    await MenuItem.findByIdAndDelete(req.params.id);
+    const item = await MenuItem.findByIdAndDelete(req.params.id);
+
+    const io = req.app.get('io');
+    if (io) {
+      console.log(`📡 Emitting menu_updated (delete) for item ${req.params.id}`);
+      io.emit('menu_updated', { action: 'delete', id: req.params.id });
+      if (item?.restaurantId) {
+        io.to(`restaurant:${item.restaurantId}`).emit('menu_updated', { action: 'delete', id: req.params.id });
+      }
+    }
+
     res.json({ success: true, message: 'Item deleted' });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });

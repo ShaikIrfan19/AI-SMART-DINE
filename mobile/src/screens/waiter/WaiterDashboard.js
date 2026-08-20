@@ -18,6 +18,8 @@ const STATUS_CONFIG = {
   cleaning: { color: colors.blue, bg: 'rgba(59,130,246,0.12)', label: 'Cleaning', emoji: '🔵' },
 };
 
+import socket from '../../services/socket';
+
 export function WaiterDashboard({ navigation }) {
   const { user } = useSelector(s => s.auth);
   const dispatch = useDispatch();
@@ -60,8 +62,22 @@ export function WaiterDashboard({ navigation }) {
 
   useEffect(() => {
     checkStatusAndFetchData();
-    const t = setInterval(checkStatusAndFetchData, 4000); // Live poll calls & orders every 4 seconds
-    return () => clearInterval(t);
+
+    // Socket listener for real-time waiter calls from customer
+    const handleWaiterCall = (payload) => {
+      console.log('🔔 [WaiterDashboard] Real-time waiter_called event received:', payload);
+      checkStatusAndFetchData();
+    };
+
+    socket.on('waiter_called', handleWaiterCall);
+    socket.on('waiter-call-alert', handleWaiterCall);
+
+    const t = setInterval(checkStatusAndFetchData, 4000);
+    return () => {
+      clearInterval(t);
+      socket.off('waiter_called', handleWaiterCall);
+      socket.off('waiter-call-alert', handleWaiterCall);
+    };
   }, [checkStatusAndFetchData]);
 
   const handleLogout = async () => {
