@@ -43,16 +43,15 @@ export function WaiterDashboard({ navigation }) {
       }
 
       // 2. If approved, load waiter tables, orders, and call alerts
-      const rid = user?.restaurantId?._id || user?.restaurantId;
       const [tabRes, orderRes, callsRes] = await Promise.all([
-        rid ? api.get(`/tables?restaurantId=${rid}`) : api.get('/tables').catch(() => ({ data: { data: [] } })),
+        api.get('/tables').catch(() => ({ data: { data: [] } })),
         api.get('/orders/live').catch(() => ({ data: { data: [] } })),
         api.get('/notifications/calls').catch(() => ({ data: { data: [] } })),
       ]);
       setStats({
-        tables: tabRes.data.data || [],
-        liveOrders: orderRes.data.data || [],
-        todayOrders: orderRes.data.data?.length || 0,
+        tables: tabRes.data?.data || [],
+        liveOrders: orderRes.data?.data || [],
+        todayOrders: orderRes.data?.data?.length || 0,
       });
       setCallAlerts(callsRes.data.data || []);
     } catch {} finally {
@@ -320,11 +319,16 @@ export function WaiterTablesScreen({ navigation }) {
 
   const fetchTables = useCallback(async () => {
     try {
-      const rid = user?.restaurantId?._id || user?.restaurantId;
-      // Fetch with restaurantId if available, otherwise fetch all tables
-      const url = rid ? `/tables?restaurantId=${rid}` : '/tables';
-      const res = await api.get(url);
-      setTables(res.data.data || []);
+      let res = await api.get('/tables').catch(() => null);
+      let data = res?.data?.data || [];
+      if (!data.length) {
+        const rid = user?.restaurantId?._id || user?.restaurantId;
+        if (rid) {
+          res = await api.get(`/tables?restaurantId=${rid}`).catch(() => null);
+          data = res?.data?.data || [];
+        }
+      }
+      setTables(data);
     } catch {} finally { setLoading(false); setRefreshing(false); }
   }, [user]);
 

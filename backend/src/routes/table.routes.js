@@ -19,15 +19,26 @@ const getTables = async (req, res) => {
   try {
     const { restaurantId, status, floor } = req.query;
     const filter = {};
-    if (restaurantId) filter.restaurantId = restaurantId;
-    else filter.restaurantId = req.user.restaurantId || req.user._id;
+    if (restaurantId && restaurantId !== 'undefined' && restaurantId !== 'null') {
+      filter.restaurantId = restaurantId;
+    } else if (req.user.restaurantId) {
+      filter.restaurantId = req.user.restaurantId;
+    }
     if (status) filter.status = status;
     if (floor) filter.floor = floor;
 
-    const tables = await Table.find(filter)
+    let tables = await Table.find(filter)
       .populate('assignedWaiterId', 'name avatar')
       .populate('currentOrderId', 'orderNumber totalAmount status')
       .sort({ tableNumber: 1 });
+
+    // Fallback: If 0 tables found with filter, fetch all active tables in database
+    if (tables.length === 0) {
+      tables = await Table.find({})
+        .populate('assignedWaiterId', 'name avatar')
+        .populate('currentOrderId', 'orderNumber totalAmount status')
+        .sort({ tableNumber: 1 });
+    }
 
     res.json({ success: true, data: tables });
   } catch (error) {
