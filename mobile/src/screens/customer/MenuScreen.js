@@ -69,25 +69,14 @@ export default function MenuScreen() {
   const fetchMenu = useCallback(async () => {
     setFetchError(null);
     try {
-      let res = await api.get(`/menu?restaurantId=${SHARED_RESTAURANT_ID}&limit=200`);
+      // 1. Plain GET /menu — EXACT SAME call used by Admin & Waiter!
+      let res = await api.get('/menu');
       let data = res.data?.data || [];
 
-      if (data.length === 0) {
-        try {
-          res = await api.get('/menu?limit=200');
-          data = res.data?.data || [];
-        } catch {}
-      }
-
-      if (data.length === 0) {
-        try {
-          res = await api.get(`/menu?restaurantId=${SHARED_RESTAURANT_ID}&isAvailable=true&limit=200`);
-          data = res.data?.data || [];
-        } catch {}
-      }
-
-      if (data.length === 0 && res.data?.items?.length > 0) {
-        data = res.data.items;
+      // 2. Fallback if empty: try with limit=200
+      if (!data.length) {
+        res = await api.get('/menu?limit=200').catch(() => null);
+        data = res?.data?.data || data;
       }
 
       setAllMenuItems(data);
@@ -102,7 +91,7 @@ export default function MenuScreen() {
 
   useEffect(() => {
     fetchMenu();
-    const timer = setInterval(fetchMenu, 30000);
+    const timer = setInterval(fetchMenu, 15000); // refresh every 15s to stay in sync with Admin additions
     return () => clearInterval(timer);
   }, [fetchMenu]);
 

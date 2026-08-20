@@ -44,10 +44,10 @@ export default function CustomerHomeScreen({ navigation }) {
 
   const fetchPopularDishes = useCallback(async () => {
     try {
-      let res = await api.get(`/menu?restaurantId=${SHARED_RESTAURANT_ID}&limit=50`);
+      let res = await api.get('/menu');
       let items = res.data?.data || [];
       if (!items.length) {
-        res = await api.get('/menu?limit=50').catch(() => ({ data: { data: [] } }));
+        res = await api.get('/menu?limit=100').catch(() => ({ data: { data: [] } }));
         items = res.data?.data || [];
       }
       // Filter items marked as popular or take top 6 items
