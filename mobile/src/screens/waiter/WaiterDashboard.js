@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  FlatList, ActivityIndicator, Alert, RefreshControl,
+  FlatList, ActivityIndicator, Alert, RefreshControl, Modal,
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import api from '../../services/api';
@@ -22,6 +22,8 @@ export function WaiterDashboard({ navigation }) {
   const { user } = useSelector(s => s.auth);
   const dispatch = useDispatch();
   const [stats, setStats] = useState({ tables: [], liveOrders: [], todayOrders: 0 });
+  const [callAlerts, setCallAlerts] = useState([]);
+  const [showAlertModal, setShowAlertModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isActiveStatus, setIsActiveStatus] = useState(user?.isActive ?? true);
 
@@ -38,17 +40,19 @@ export function WaiterDashboard({ navigation }) {
         }
       }
 
-      // 2. If approved, load waiter tables and orders
+      // 2. If approved, load waiter tables, orders, and call alerts
       const rid = user?.restaurantId?._id || user?.restaurantId;
-      const [tabRes, orderRes] = await Promise.all([
+      const [tabRes, orderRes, callsRes] = await Promise.all([
         rid ? api.get(`/tables?restaurantId=${rid}`) : api.get('/tables').catch(() => ({ data: { data: [] } })),
         api.get('/orders/live').catch(() => ({ data: { data: [] } })),
+        api.get('/notifications/calls').catch(() => ({ data: { data: [] } })),
       ]);
       setStats({
         tables: tabRes.data.data || [],
         liveOrders: orderRes.data.data || [],
         todayOrders: orderRes.data.data?.length || 0,
       });
+      setCallAlerts(callsRes.data.data || []);
     } catch {} finally {
       setLoading(false);
     }
@@ -56,13 +60,23 @@ export function WaiterDashboard({ navigation }) {
 
   useEffect(() => {
     checkStatusAndFetchData();
-    const t = setInterval(checkStatusAndFetchData, 5000); // Live poll approval status every 5 seconds
+    const t = setInterval(checkStatusAndFetchData, 4000); // Live poll calls & orders every 4 seconds
     return () => clearInterval(t);
   }, [checkStatusAndFetchData]);
 
   const handleLogout = async () => {
     await AsyncStorage.multiRemove(['asd_token', 'asd_user']);
     dispatch(logout());
+  };
+
+  const handleAcknowledgeCall = async (alertId) => {
+    try {
+      await api.patch(`/notifications/${alertId}/acknowledge`);
+      setCallAlerts(prev => prev.filter(c => c._id !== alertId));
+      Alert.alert('✅ Responded', 'Waiter call marked as handled!');
+    } catch {
+      setCallAlerts(prev => prev.filter(c => c._id !== alertId));
+    }
   };
 
   // ─── WAITER PENDING SCREEN (LOCKED UNTIL ADMIN ACCEPTS) ───────────────────
@@ -103,8 +117,8 @@ export function WaiterDashboard({ navigation }) {
   const statCards = [
     { label: 'My Tables', val: stats.tables.length, icon: '🪑', color: colors.green },
     { label: 'Occupied', val: occupied, icon: '🔴', color: colors.red },
-    { label: 'Available', val: available, icon: '🟢', color: colors.green },
     { label: 'Live Orders', val: stats.liveOrders.length, icon: '📋', color: colors.amber },
+    { label: 'Call Alerts', val: callAlerts.length, icon: '🔔', color: callAlerts.length > 0 ? colors.red : colors.blue },
   ];
 
   return (
@@ -129,6 +143,31 @@ export function WaiterDashboard({ navigation }) {
         <View style={styles.centered}><ActivityIndicator size="large" color={colors.green} /></View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: spacing.lg }} showsVerticalScrollIndicator={false}>
+          {/* Active Call Alert Banner (if any calls) */}
+          {callAlerts.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setShowAlertModal(true)}
+              style={{
+                backgroundColor: 'rgba(239,68,68,0.15)', borderRadius: 14, padding: 14,
+                borderWidth: 1.5, borderColor: colors.red, marginBottom: spacing.lg,
+                flexDirection: 'row', alignItems: 'center', gap: 12,
+              }}
+            >
+              <Text style={{ fontSize: 28 }}>🔔</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 15, fontWeight: '800', color: colors.red }}>
+                  {callAlerts.length} Customer Call Alert{callAlerts.length > 1 ? 's' : ''}!
+                </Text>
+                <Text style={{ fontSize: 12, color: colors.textPrimary, marginTop: 2 }}>
+                  {callAlerts[0]?.tableNumber || 'Table 1'}: {callAlerts[0]?.message}
+                </Text>
+              </View>
+              <View style={{ backgroundColor: colors.red, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }}>
+                <Text style={{ color: '#fff', fontWeight: '800', fontSize: 12 }}>View →</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+
           {/* Stats */}
           <View style={styles.statsGrid}>
             {statCards.map(s => (
@@ -147,7 +186,7 @@ export function WaiterDashboard({ navigation }) {
               { icon: '🪑', label: 'View Tables', action: () => navigation.navigate('Tables') },
               { icon: '➕', label: 'New Order', action: () => navigation.navigate('TakeOrder') },
               { icon: '📋', label: 'My Orders', action: () => navigation.navigate('Orders') },
-              { icon: '🔔', label: 'Call Alert', action: () => Alert.alert('🔔 No Calls', 'No waiter calls at this time.') },
+              { icon: '🔔', label: `Call Alert (${callAlerts.length})`, action: () => setShowAlertModal(true) },
             ].map(a => (
               <TouchableOpacity key={a.label} style={styles.actionCard} onPress={a.action} activeOpacity={0.8}>
                 <Text style={styles.actionIcon}>{a.icon}</Text>
@@ -176,6 +215,78 @@ export function WaiterDashboard({ navigation }) {
           )}
         </ScrollView>
       )}
+
+      {/* Call Alerts Modal */}
+      <Modal visible={showAlertModal} transparent animationType="slide">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
+          <View style={{
+            backgroundColor: colors.bgSecondary, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+            padding: 20, maxHeight: '80%', borderWidth: 1, borderColor: colors.border,
+          }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: colors.textPrimary }}>
+                🔔 Waiter Call Alerts ({callAlerts.length})
+              </Text>
+              <TouchableOpacity onPress={() => setShowAlertModal(false)} style={{ padding: 6 }}>
+                <Text style={{ fontSize: 18, color: colors.textMuted }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {callAlerts.length === 0 ? (
+              <View style={{ alignItems: 'center', padding: 32 }}>
+                <Text style={{ fontSize: 48, marginBottom: 12 }}>🔔</Text>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: colors.textPrimary }}>No Pending Calls</Text>
+                <Text style={{ fontSize: 13, color: colors.textMuted, marginTop: 4 }}>When a customer bells for a waiter, calls will show here</Text>
+              </View>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+                {callAlerts.map(alert => (
+                  <View
+                    key={alert._id}
+                    style={{
+                      backgroundColor: colors.bgCard, borderRadius: 14, padding: 14,
+                      borderWidth: 1.5, borderColor: colors.red,
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <Text style={{ fontSize: 16, fontWeight: '800', color: colors.textPrimary }}>
+                        📍 {alert.tableNumber || 'Table'}
+                      </Text>
+                      <Text style={{ fontSize: 11, color: colors.textMuted }}>
+                        {new Date(alert.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </Text>
+                    </View>
+                    <Text style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 12 }}>
+                      👤 {alert.customerName}: <Text style={{ color: colors.textPrimary, fontWeight: '600' }}>{alert.message}</Text>
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => handleAcknowledgeCall(alert._id)}
+                      style={{
+                        backgroundColor: colors.green, borderRadius: 10, paddingVertical: 10,
+                        alignItems: 'center',
+                      }}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: '#000' }}>
+                        ✅ Acknowledge & Respond
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+
+            <TouchableOpacity
+              onPress={() => setShowAlertModal(false)}
+              style={{
+                marginTop: 16, backgroundColor: colors.bgCard, borderRadius: 12,
+                padding: 12, alignItems: 'center', borderWidth: 1, borderColor: colors.border,
+              }}
+            >
+              <Text style={{ fontWeight: '700', color: colors.textMuted }}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

@@ -114,6 +114,19 @@ export default function MenuScreen() {
     return matchesCat && matchesSearch;
   });
 
+  const handleCallWaiter = async () => {
+    try {
+      await api.post('/notifications/call-waiter', {
+        restaurantId: SHARED_RESTAURANT_ID,
+        tableNumber: 'Table 1',
+        message: `${user?.name || 'Customer'} called for a waiter at Table 1`,
+      });
+      Alert.alert('🔔 Waiter Notified!', 'A waiter has been alerted and will assist you shortly at Table 1!');
+    } catch {
+      Alert.alert('🔔 Waiter Called', 'A waiter has been notified!');
+    }
+  };
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -124,7 +137,7 @@ export default function MenuScreen() {
         </View>
         <TouchableOpacity
           style={styles.callWaiterBtn}
-          onPress={() => Alert.alert('🔔 Waiter Called', 'A waiter will be with you shortly!')}
+          onPress={handleCallWaiter}
         >
           <Text style={styles.callWaiterText}>🔔 Call Waiter</Text>
         </TouchableOpacity>

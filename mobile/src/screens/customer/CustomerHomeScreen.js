@@ -65,6 +65,19 @@ export default function CustomerHomeScreen({ navigation }) {
     fetchPopularDishes();
   }, [fetchPopularDishes]);
 
+  const handleCallWaiter = async () => {
+    try {
+      await api.post('/notifications/call-waiter', {
+        restaurantId: SHARED_RESTAURANT_ID,
+        tableNumber: 'Table 1',
+        message: `${user?.name || 'Customer'} called for a waiter at Table 1`,
+      });
+      Alert.alert('🔔 Waiter Notified!', 'A waiter has been alerted and will assist you shortly at Table 1!');
+    } catch {
+      Alert.alert('🔔 Waiter Called', 'A waiter has been notified!');
+    }
+  };
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -75,7 +88,7 @@ export default function CustomerHomeScreen({ navigation }) {
         </View>
         <TouchableOpacity
           style={styles.callWaiterBtn}
-          onPress={() => Alert.alert('🔔 Waiter Called', 'A waiter has been notified and will assist you shortly!')}
+          onPress={handleCallWaiter}
           activeOpacity={0.8}
         >
           <Text style={styles.callWaiterText}>🔔 Call Waiter</Text>
