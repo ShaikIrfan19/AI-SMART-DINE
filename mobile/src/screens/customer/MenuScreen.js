@@ -270,8 +270,8 @@ export default function MenuScreen() {
               )}
             </View>
           ) : (
-            menuItems.map(item => (
-              <MenuItemCard key={item._id} item={item} />
+            menuItems.map((item, index) => (
+              <MenuItemCard key={`${item._id || item.name}-${index}`} item={item} />
             ))
           )}
         </View>

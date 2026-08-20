@@ -58,8 +58,13 @@ export default function CustomerHomeScreen({ navigation }) {
       const res = await api.get('/menu');
       const data = res.data?.data || [];
       const items = data.length > 0 ? data : DEFAULT_MENU_ITEMS;
-      const popular = items.filter(i => i.isPopular || i.isBestSeller).concat(items).slice(0, 6);
-      setPopularItems(popular);
+      const uniqueMap = new Map();
+      items.filter(i => i.isPopular || i.isBestSeller).concat(items).forEach(i => {
+        if (i && (i._id || i.name)) {
+          uniqueMap.set(i._id || i.name, i);
+        }
+      });
+      setPopularItems(Array.from(uniqueMap.values()).slice(0, 6));
     } catch (e) {
       setPopularItems(DEFAULT_MENU_ITEMS);
     } finally {
@@ -243,9 +248,9 @@ export default function CustomerHomeScreen({ navigation }) {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: 14 }}
             >
-              {popularItems.map(item => (
+              {popularItems.map((item, index) => (
                 <TouchableOpacity
-                  key={item._id}
+                  key={`${item._id || item.name}-${index}`}
                   style={styles.dishCard}
                   onPress={() => navigation.navigate('Menu')}
                   activeOpacity={0.85}
