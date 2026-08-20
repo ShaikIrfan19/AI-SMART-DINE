@@ -50,15 +50,23 @@ export default function CustomerHomeScreen({ navigation }) {
       let items = res?.data?.data || [];
 
       if (!items.length) {
+        try {
+          const tabRes = await api.get('/tables');
+          const foundTables = tabRes?.data?.data || [];
+          const foundRid = foundTables[0]?.restaurantId?._id || foundTables[0]?.restaurantId;
+          if (foundRid) {
+            res = await api.get(`/menu?restaurantId=${foundRid}`).catch(() => null);
+            items = res?.data?.data || [];
+          }
+        } catch {}
+      }
+
+      if (!items.length) {
         res = await api.get(`/menu?restaurantId=${SHARED_RESTAURANT_ID}`).catch(() => null);
         items = res?.data?.data || [];
       }
       if (!items.length) {
         res = await api.get('/menu?isAvailable=true').catch(() => null);
-        items = res?.data?.data || [];
-      }
-      if (!items.length) {
-        res = await api.get(`/menu?restaurantId=${SHARED_RESTAURANT_ID}&isAvailable=true`).catch(() => null);
         items = res?.data?.data || [];
       }
       if (!items.length && res?.data) {

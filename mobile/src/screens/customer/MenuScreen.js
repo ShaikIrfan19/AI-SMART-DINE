@@ -88,21 +88,28 @@ export default function MenuScreen() {
       let res = await api.get('/menu').catch(() => null);
       let data = res?.data?.data || [];
 
-      // Strategy 2: Query with shared restaurantId
+      // Strategy 2: Discover Admin's restaurantId from /tables endpoint (works on old Render backend)
+      if (!data.length) {
+        try {
+          const tabRes = await api.get('/tables');
+          const foundTables = tabRes?.data?.data || [];
+          const foundRid = foundTables[0]?.restaurantId?._id || foundTables[0]?.restaurantId;
+          if (foundRid) {
+            res = await api.get(`/menu?restaurantId=${foundRid}`).catch(() => null);
+            data = res?.data?.data || [];
+          }
+        } catch {}
+      }
+
+      // Strategy 3: Query with shared restaurantId
       if (!data.length) {
         res = await api.get(`/menu?restaurantId=${SHARED_RESTAURANT_ID}`).catch(() => null);
         data = res?.data?.data || [];
       }
 
-      // Strategy 3: Query with isAvailable=true
+      // Strategy 4: Query with isAvailable=true
       if (!data.length) {
         res = await api.get('/menu?isAvailable=true').catch(() => null);
-        data = res?.data?.data || [];
-      }
-
-      // Strategy 4: Query with restaurantId & isAvailable=true
-      if (!data.length) {
-        res = await api.get(`/menu?restaurantId=${SHARED_RESTAURANT_ID}&isAvailable=true`).catch(() => null);
         data = res?.data?.data || [];
       }
 
