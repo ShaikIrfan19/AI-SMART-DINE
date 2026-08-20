@@ -1,120 +1,60 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  TextInput, ActivityIndicator, RefreshControl, Alert,
+  ActivityIndicator, RefreshControl, Alert, Image,
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import api from '../../services/api';
-import { colors, spacing, radius } from '../../theme';
+import { colors, spacing, radius, shadows } from '../../theme';
 
-const CATEGORIES = [
-  { key: 'all',        label: 'All',        emoji: '🍽️' },
-  { key: 'starters',  label: 'Starters',   emoji: '🥗' },
-  { key: 'main_course', label: 'Main Course', emoji: '🍛' },
-  { key: 'desserts',  label: 'Desserts',   emoji: '🍮' },
-  { key: 'drinks',    label: 'Drinks',     emoji: '🥤' },
-  { key: 'combos',    label: 'Combos',     emoji: '🎁' },
-  { key: 'snacks',    label: 'Snacks',     emoji: '🍟' },
+const PROMO_BANNERS = [
+  {
+    id: '1',
+    title: '✨ 20% OFF Combo Deals',
+    subtitle: 'Delicious family meals at discounted prices',
+    bg: 'rgba(16,185,129,0.15)',
+    border: '#10b981',
+    badge: 'LIMITED OFFER',
+  },
+  {
+    id: '2',
+    title: '🍷 Free Welcome Drink',
+    subtitle: 'Complimentary mocktail on table reservation',
+    bg: 'rgba(245,158,11,0.15)',
+    border: '#f59e0b',
+    badge: 'SPECIAL',
+  },
+  {
+    id: '3',
+    title: '👨‍🍳 Chef Specials Today',
+    subtitle: 'Handcrafted signature gourmet dishes',
+    bg: 'rgba(139,92,246,0.15)',
+    border: '#8b5cf6',
+    badge: 'CHEF CHOICE',
+  },
 ];
-
-function AIInsightBanner() {
-  return null; // Simplified — AI endpoint often fails for customer
-}
-
-// View-only menu card (no Add to Cart for customer — read only)
-function MenuItemCard({ item }) {
-  const CAT_LABELS = {
-    all: 'All', starters: 'Starters', main_course: 'Main Course',
-    desserts: 'Desserts', drinks: 'Drinks', combos: 'Combos', snacks: 'Snacks',
-  };
-  const catLabel = (cat) => {
-    if (!cat) return '';
-    const key = cat.toLowerCase().replace(/ /g, '_');
-    return CAT_LABELS[key] || cat.charAt(0).toUpperCase() + cat.slice(1);
-  };
-
-  return (
-    <View style={styles.menuCard}>
-      <View style={styles.menuImageBox}>
-        <Text style={styles.menuEmoji}>{item.isVeg ? '🥗' : '🍗'}</Text>
-        {item.isPopular && <View style={styles.hotBadge}><Text style={styles.hotBadgeText}>🔥 HOT</Text></View>}
-      </View>
-      <View style={styles.menuInfo}>
-        <Text style={styles.menuName} numberOfLines={1}>{item.name}</Text>
-        <Text style={styles.menuCat}>{catLabel(item.category)}</Text>
-        {item.description ? (
-          <Text style={styles.menuDesc} numberOfLines={2}>{item.description}</Text>
-        ) : null}
-        <View style={styles.menuBottom}>
-          <Text style={styles.menuPrice}>₹{item.price}</Text>
-          <View style={[styles.vegBadge, { backgroundColor: item.isVeg ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)' }]}>
-            <View style={[styles.vegDot, { backgroundColor: item.isVeg ? '#10b981' : '#ef4444' }]} />
-            <Text style={[styles.vegText, { color: item.isVeg ? '#10b981' : '#ef4444' }]}>
-              {item.isVeg ? 'Veg' : 'Non-Veg'}
-            </Text>
-          </View>
-        </View>
-      </View>
-    </View>
-  );
-}
 
 export default function CustomerHomeScreen({ navigation }) {
   const { user } = useSelector(state => state.auth);
-
-  const [allMenuItems, setAllMenuItems] = useState([]);
-  const [loading, setLoading]     = useState(true);
+  const [popularItems, setPopularItems] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [category, setCategory]   = useState('all');
-  const [search, setSearch]       = useState('');
 
-  // Client-side filter — instant, works regardless of backend version
-  const menuItems = allMenuItems.filter(item => {
-    const catKey = (item.category || '').toLowerCase().replace(/ /g, '_');
-    const matchesCat = category === 'all' || catKey === category;
-    const matchesSearch = !search.trim() ||
-      item.name?.toLowerCase().includes(search.trim().toLowerCase());
-    return matchesCat && matchesSearch;
-  });
-
-  const [fetchError, setFetchError] = useState(null);
-
-  // The shared restaurantId all menu items are stored under in MongoDB
   const SHARED_RESTAURANT_ID = '60d0fe4f5311236168a109ca';
 
-  // Fetch ALL items — try multiple strategies to handle old Render backend
-  const fetchMenu = useCallback(async () => {
-    setFetchError(null);
+  const fetchPopularDishes = useCallback(async () => {
     try {
-      // Strategy 1: Query with the shared restaurantId (items are stored under this ID)
-      let res = await api.get(`/menu?restaurantId=${SHARED_RESTAURANT_ID}&limit=200`);
-      let data = res.data?.data || [];
-
-      // Strategy 2: Plain GET /menu with no filters
-      if (data.length === 0) {
-        try {
-          res = await api.get('/menu?limit=200');
-          data = res.data?.data || [];
-        } catch {}
+      let res = await api.get(`/menu?restaurantId=${SHARED_RESTAURANT_ID}&limit=50`);
+      let items = res.data?.data || [];
+      if (!items.length) {
+        res = await api.get('/menu?limit=50').catch(() => ({ data: { data: [] } }));
+        items = res.data?.data || [];
       }
-
-      // Strategy 3: With isAvailable=true
-      if (data.length === 0) {
-        try {
-          res = await api.get(`/menu?restaurantId=${SHARED_RESTAURANT_ID}&isAvailable=true&limit=200`);
-          data = res.data?.data || [];
-        } catch {}
-      }
-
-      // Strategy 4: Try res.data.items (different API format)
-      if (data.length === 0 && res.data?.items?.length > 0) {
-        data = res.data.items;
-      }
-
-      setAllMenuItems(data);
+      // Filter items marked as popular or take top 6 items
+      const popular = items.filter(i => i.isPopular || i.isBestSeller).concat(items).slice(0, 6);
+      setPopularItems(popular);
     } catch (e) {
-      const errMsg = e.response?.data?.message || e.message || 'Network error';
-      setFetchError(errMsg);
+      setPopularItems([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -122,22 +62,21 @@ export default function CustomerHomeScreen({ navigation }) {
   }, []);
 
   useEffect(() => {
-    fetchMenu();
-    const timer = setInterval(fetchMenu, 30000);
-    return () => clearInterval(timer);
-  }, [fetchMenu]);
+    fetchPopularDishes();
+  }, [fetchPopularDishes]);
 
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>Hello, {user?.name?.split(' ')[0]} 👋</Text>
-          <Text style={styles.restaurantName}>Our Menu</Text>
+          <Text style={styles.greeting}>Good Day, {user?.name?.split(' ')[0] || 'Guest'} 👋</Text>
+          <Text style={styles.restaurantName}>AI Smart Dine 🍽️</Text>
         </View>
         <TouchableOpacity
           style={styles.callWaiterBtn}
-          onPress={() => Alert.alert('🔔 Waiter Called', 'A waiter will be with you shortly!')}
+          onPress={() => Alert.alert('🔔 Waiter Called', 'A waiter has been notified and will assist you shortly!')}
+          activeOpacity={0.8}
         >
           <Text style={styles.callWaiterText}>🔔 Call Waiter</Text>
         </TouchableOpacity>
@@ -145,95 +84,197 @@ export default function CustomerHomeScreen({ navigation }) {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchMenu(); }} tintColor={colors.green} />}
-      >
-        {/* Search */}
-        <View style={styles.searchBox}>
-          <Text style={styles.searchIcon}>🔍</Text>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search dishes..."
-            placeholderTextColor={colors.textMuted}
-            value={search}
-            onChangeText={setSearch}
+        contentContainerStyle={{ paddingBottom: 32 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); fetchPopularDishes(); }}
+            tintColor={colors.green}
           />
-          {search.length > 0 && (
-            <TouchableOpacity onPress={() => setSearch('')}>
-              <Text style={{ color: colors.textMuted, fontSize: 18, paddingHorizontal: 8 }}>×</Text>
+        }
+      >
+        {/* Welcome Hero Banner */}
+        <View style={styles.heroCard}>
+          <View style={styles.heroBadge}>
+            <Text style={styles.heroBadgeText}>⭐ #1 Smart Restaurant</Text>
+          </View>
+          <Text style={styles.heroTitle}>Delicious Food & Instant Service 🍕</Text>
+          <Text style={styles.heroSubtitle}>
+            Order directly, reserve your favorite table, or call waiter with one tap.
+          </Text>
+          <TouchableOpacity
+            style={styles.heroBtn}
+            onPress={() => navigation.navigate('Menu')}
+            activeOpacity={0.9}
+          >
+            <Text style={styles.heroBtnText}>Browse Full Menu →</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Promo Banners Carousel */}
+        <View style={{ marginTop: spacing.lg }}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: 12 }}
+          >
+            {PROMO_BANNERS.map(promo => (
+              <View
+                key={promo.id}
+                style={[
+                  styles.promoCard,
+                  { backgroundColor: promo.bg, borderColor: promo.border },
+                ]}
+              >
+                <View style={[styles.promoBadge, { backgroundColor: promo.border }]}>
+                  <Text style={styles.promoBadgeText}>{promo.badge}</Text>
+                </View>
+                <Text style={styles.promoTitle}>{promo.title}</Text>
+                <Text style={styles.promoSub}>{promo.subtitle}</Text>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* Quick Action Navigation Grid */}
+        <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.xl }}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <View style={styles.gridRow}>
+            <TouchableOpacity
+              style={styles.gridCard}
+              onPress={() => navigation.navigate('Menu')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.gridIcon}>🍽️</Text>
+              <Text style={styles.gridTitle}>Explore Menu</Text>
+              <Text style={styles.gridSub}>View all dishes & prices</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.gridCard}
+              onPress={() => navigation.navigate('Reservations')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.gridIcon}>🗓️</Text>
+              <Text style={styles.gridTitle}>Book Table</Text>
+              <Text style={styles.gridSub}>Reserve seat in advance</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.gridCard}
+              onPress={() => navigation.navigate('Orders')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.gridIcon}>📋</Text>
+              <Text style={styles.gridTitle}>Track Orders</Text>
+              <Text style={styles.gridSub}>Live status updates</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.gridCard}
+              onPress={() => navigation.navigate('Profile')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.gridIcon}>👤</Text>
+              <Text style={styles.gridTitle}>My Profile</Text>
+              <Text style={styles.gridSub}>Account & Preferences</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Popular / Trending Dishes Section */}
+        <View style={{ marginTop: spacing.xl }}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>🔥 Chef's Trending Dishes</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Menu')}>
+              <Text style={{ fontSize: 13, color: colors.green, fontWeight: '700' }}>View All →</Text>
+            </TouchableOpacity>
+          </View>
+
+          {loading ? (
+            <ActivityIndicator color={colors.green} style={{ marginVertical: 20 }} />
+          ) : popularItems.length === 0 ? (
+            <Text style={{ color: colors.textMuted, paddingHorizontal: spacing.lg, fontSize: 13 }}>
+              Explore our menu to discover delicious dishes!
+            </Text>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: 14 }}
+            >
+              {popularItems.map(item => (
+                <TouchableOpacity
+                  key={item._id}
+                  style={styles.dishCard}
+                  onPress={() => navigation.navigate('Menu')}
+                  activeOpacity={0.85}
+                >
+                  <View style={styles.dishImageBox}>
+                    <Text style={{ fontSize: 44 }}>{item.isVeg ? '🥗' : '🍗'}</Text>
+                    {item.isVeg ? (
+                      <View style={[styles.vegBadge, { backgroundColor: 'rgba(16,185,129,0.2)' }]}>
+                        <Text style={{ color: colors.green, fontSize: 10, fontWeight: '800' }}>🟢 VEG</Text>
+                      </View>
+                    ) : (
+                      <View style={[styles.vegBadge, { backgroundColor: 'rgba(239,68,68,0.2)' }]}>
+                        <Text style={{ color: colors.red, fontSize: 10, fontWeight: '800' }}>🔴 NON-VEG</Text>
+                      </View>
+                    )}
+                  </View>
+
+                  <Text style={styles.dishName} numberOfLines={1}>{item.name}</Text>
+                  <Text style={styles.dishCat} numberOfLines={1}>{item.category?.replace(/_/g, ' ')}</Text>
+                  
+                  <View style={styles.dishBottom}>
+                    <Text style={styles.dishPrice}>₹{item.price}</Text>
+                    <View style={styles.viewBadge}>
+                      <Text style={styles.viewBadgeText}>View</Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           )}
         </View>
 
-        {/* Categories */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.categoriesRow}
-          contentContainerStyle={{ paddingHorizontal: spacing.lg }}
-        >
-          {CATEGORIES.map(cat => (
-            <TouchableOpacity
-              key={cat.key}
-              style={[styles.categoryChip, category === cat.key && styles.categoryChipActive]}
-              onPress={() => setCategory(cat.key)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.categoryEmoji}>{cat.emoji}</Text>
-              <Text style={[styles.categoryLabel, category === cat.key && styles.categoryLabelActive]}>
-                {cat.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        {/* Why Choose Us Section */}
+        <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.xl }}>
+          <Text style={styles.sectionTitle}>💎 Why Dine With Us?</Text>
+          <View style={styles.featureGrid}>
+            <View style={styles.featureItem}>
+              <Text style={styles.featureIcon}>🌿</Text>
+              <Text style={styles.featureTitle}>100% Fresh</Text>
+              <Text style={styles.featureSub}>Organic & premium ingredients</Text>
+            </View>
 
-        {/* Menu Items */}
-        <View style={{ paddingHorizontal: spacing.lg, paddingBottom: 24 }}>
-          <Text style={styles.sectionTitle}>
-            {category === 'all' ? '🍽️ Full Menu' : CATEGORIES.find(c => c.key === category)?.label} ({menuItems.length})
-          </Text>
+            <View style={styles.featureItem}>
+              <Text style={styles.featureIcon}>⚡</Text>
+              <Text style={styles.featureTitle}>Fast Service</Text>
+              <Text style={styles.featureSub}>Instant waiter call & tracking</Text>
+            </View>
 
-          {loading ? (
-            <View style={styles.loadingBox}>
-              <ActivityIndicator size="large" color={colors.green} />
-              <Text style={styles.loadingText}>Loading menu...</Text>
+            <View style={styles.featureItem}>
+              <Text style={styles.featureIcon}>🤖</Text>
+              <Text style={styles.featureTitle}>AI Smart Dine</Text>
+              <Text style={styles.featureSub}>Personalized dining suggestions</Text>
             </View>
-          ) : fetchError ? (
-            <View style={styles.emptyBox}>
-              <Text style={{ fontSize: 40, marginBottom: 12 }}>⚠️</Text>
-              <Text style={styles.emptyTitle}>Could not load menu</Text>
-              <Text style={[styles.emptyText, { color: colors.red, marginBottom: 16, fontSize: 11 }]}>
-                {fetchError}
-              </Text>
-              <TouchableOpacity
-                onPress={() => { setLoading(true); fetchMenu(); }}
-                style={{ backgroundColor: colors.green, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 12 }}
-              >
-                <Text style={{ fontWeight: '800', color: '#000', fontSize: 14 }}>↻ Retry</Text>
-              </TouchableOpacity>
+
+            <View style={styles.featureItem}>
+              <Text style={styles.featureIcon}>👑</Text>
+              <Text style={styles.featureTitle}>VIP Ambiance</Text>
+              <Text style={styles.featureSub}>Comfortable table seating</Text>
             </View>
-          ) : menuItems.length === 0 ? (
-            <View style={styles.emptyBox}>
-              <Text style={styles.emptyEmoji}>🍽️</Text>
-              <Text style={styles.emptyTitle}>
-                {allMenuItems.length === 0 ? 'Menu is being updated' : 'No items in this category'}
-              </Text>
-              <Text style={styles.emptyText}>
-                {allMenuItems.length === 0 ? 'Pull down to refresh' : 'Try selecting a different category'}
-              </Text>
-              {allMenuItems.length === 0 && (
-                <TouchableOpacity
-                  onPress={() => { setLoading(true); fetchMenu(); }}
-                  style={{ marginTop: 16, backgroundColor: colors.green, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 12 }}
-                >
-                  <Text style={{ fontWeight: '800', color: '#000', fontSize: 14 }}>↻ Refresh Menu</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          ) : (
-            menuItems.map(item => (
-              <MenuItemCard key={item._id} item={item} />
-            ))
-          )}
+          </View>
+        </View>
+
+        {/* Rating Footer Badge */}
+        <View style={styles.ratingBar}>
+          <Text style={{ fontSize: 24 }}>⭐</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 14, fontWeight: '800', color: colors.textPrimary }}>4.9 Stars Average Customer Rating</Text>
+            <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>Over 500+ satisfied foodies served!</Text>
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -242,48 +283,97 @@ export default function CustomerHomeScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: spacing.lg, paddingTop: 56, backgroundColor: colors.bgSecondary, borderBottomWidth: 1, borderBottomColor: colors.border },
+  header: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    padding: spacing.lg, paddingTop: 56, backgroundColor: colors.bgSecondary,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
   greeting: { fontSize: 13, color: colors.textMuted },
   restaurantName: { fontSize: 20, fontWeight: '800', color: colors.textPrimary, marginTop: 2 },
-  callWaiterBtn: { backgroundColor: 'rgba(16,185,129,0.12)', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: colors.borderActive },
+  callWaiterBtn: {
+    backgroundColor: 'rgba(16,185,129,0.12)', borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: colors.borderActive,
+  },
   callWaiterText: { fontSize: 12, fontWeight: '700', color: colors.green },
-  restInfoBar: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: spacing.lg, paddingVertical: 10 },
-  openBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99 },
-  openDot: { width: 7, height: 7, borderRadius: 99 },
-  openText: { fontSize: 12, fontWeight: '700' },
-  restHours: { fontSize: 12, color: colors.textMuted },
-  aiBanner: { margin: spacing.lg, marginBottom: 0, backgroundColor: 'rgba(16,185,129,0.08)', borderRadius: radius.md, padding: spacing.md, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: 'rgba(16,185,129,0.25)' },
-  aiBannerIcon: { fontSize: 24 },
-  aiBannerTitle: { fontSize: 11, fontWeight: '700', color: colors.green, textTransform: 'uppercase', letterSpacing: 0.5 },
-  aiBannerText: { fontSize: 13, color: colors.textSecondary, marginTop: 2, lineHeight: 18 },
-  searchBox: { flexDirection: 'row', alignItems: 'center', margin: spacing.lg, marginBottom: spacing.md, backgroundColor: colors.bgCard, borderRadius: radius.md, paddingHorizontal: spacing.md, borderWidth: 1, borderColor: colors.border },
-  searchIcon: { fontSize: 16, marginRight: 6 },
-  searchInput: { flex: 1, paddingVertical: 12, color: colors.textPrimary, fontSize: 14 },
-  categoriesRow: { marginBottom: spacing.md },
-  categoryChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8, backgroundColor: colors.bgCard, borderRadius: 99, borderWidth: 1, borderColor: colors.border },
-  categoryChipActive: { backgroundColor: colors.green, borderColor: colors.green },
-  categoryEmoji: { fontSize: 16 },
-  categoryLabel: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
-  categoryLabelActive: { color: '#000' },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: colors.textPrimary, marginBottom: spacing.md },
-  menuCard: { flexDirection: 'row', backgroundColor: colors.bgCard, borderRadius: radius.lg, marginBottom: spacing.md, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
-  menuImageBox: { width: 100, backgroundColor: colors.bgSecondary, alignItems: 'center', justifyContent: 'center', position: 'relative' },
-  menuEmoji: { fontSize: 36 },
-  hotBadge: { position: 'absolute', top: 6, left: 6, backgroundColor: 'rgba(239,68,68,0.9)', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 },
-  hotBadgeText: { fontSize: 9, fontWeight: '800', color: '#fff' },
-  menuInfo: { flex: 1, padding: 12 },
-  menuName: { fontSize: 14, fontWeight: '700', color: colors.textPrimary, marginBottom: 2 },
-  menuCat: { fontSize: 11, color: colors.green, fontWeight: '600', marginBottom: 4 },
-  menuDesc: { fontSize: 12, color: colors.textMuted, lineHeight: 17, marginBottom: 6 },
-  menuBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 },
-  menuPrice: { fontSize: 17, fontWeight: '800', color: colors.green },
-  vegBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 99 },
-  vegDot: { width: 7, height: 7, borderRadius: 99 },
-  vegText: { fontSize: 11, fontWeight: '700' },
-  loadingBox: { alignItems: 'center', padding: 48 },
-  loadingText: { color: colors.textMuted, marginTop: 12 },
-  emptyBox: { alignItems: 'center', padding: 48 },
-  emptyEmoji: { fontSize: 48, marginBottom: 12, opacity: 0.5 },
-  emptyTitle: { fontSize: 17, fontWeight: '700', color: colors.textPrimary, marginBottom: 6 },
-  emptyText: { fontSize: 13, color: colors.textMuted, textAlign: 'center' },
+
+  heroCard: {
+    margin: spacing.lg, backgroundColor: colors.bgCard, borderRadius: radius.xl,
+    padding: spacing.lg, borderWidth: 1.5, borderColor: 'rgba(16,185,129,0.3)',
+    ...shadows.green,
+  },
+  heroBadge: {
+    alignSelf: 'flex-start', backgroundColor: 'rgba(16,185,129,0.15)',
+    borderRadius: 99, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 10,
+  },
+  heroBadgeText: { fontSize: 11, fontWeight: '800', color: colors.green },
+  heroTitle: { fontSize: 20, fontWeight: '900', color: colors.textPrimary, lineHeight: 26, marginBottom: 6 },
+  heroSubtitle: { fontSize: 13, color: colors.textMuted, lineHeight: 18, marginBottom: 16 },
+  heroBtn: {
+    backgroundColor: colors.green, borderRadius: radius.md,
+    paddingVertical: 12, paddingHorizontal: 18, alignSelf: 'flex-start',
+  },
+  heroBtnText: { fontSize: 14, fontWeight: '800', color: '#000' },
+
+  promoCard: {
+    width: 260, padding: spacing.md, borderRadius: radius.lg, borderWidth: 1.5,
+  },
+  promoBadge: {
+    alignSelf: 'flex-start', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, marginBottom: 8,
+  },
+  promoBadgeText: { fontSize: 9, fontWeight: '900', color: '#000' },
+  promoTitle: { fontSize: 15, fontWeight: '800', color: colors.textPrimary, marginBottom: 4 },
+  promoSub: { fontSize: 12, color: colors.textMuted },
+
+  sectionHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: spacing.lg, marginBottom: spacing.md,
+  },
+  sectionTitle: { fontSize: 16, fontWeight: '800', color: colors.textPrimary, marginBottom: spacing.md },
+
+  gridRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  gridCard: {
+    flex: 1, minWidth: '45%', backgroundColor: colors.bgCard, borderRadius: radius.lg,
+    padding: spacing.md, borderWidth: 1, borderColor: colors.border,
+  },
+  gridIcon: { fontSize: 28, marginBottom: 6 },
+  gridTitle: { fontSize: 14, fontWeight: '800', color: colors.textPrimary },
+  gridSub: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+
+  dishCard: {
+    width: 150, backgroundColor: colors.bgCard, borderRadius: radius.lg,
+    padding: spacing.md, borderWidth: 1, borderColor: colors.border,
+  },
+  dishImageBox: {
+    height: 90, backgroundColor: colors.bgSecondary, borderRadius: radius.md,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 10, position: 'relative',
+  },
+  vegBadge: {
+    position: 'absolute', top: 6, right: 6, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 2,
+  },
+  dishName: { fontSize: 14, fontWeight: '800', color: colors.textPrimary },
+  dishCat: { fontSize: 11, color: colors.textMuted, textTransform: 'capitalize', marginTop: 2 },
+  dishBottom: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10,
+  },
+  dishPrice: { fontSize: 15, fontWeight: '800', color: colors.green },
+  viewBadge: {
+    backgroundColor: colors.bgSecondary, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  viewBadgeText: { fontSize: 10, fontWeight: '700', color: colors.textSecondary },
+
+  featureGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  featureItem: {
+    flex: 1, minWidth: '45%', backgroundColor: colors.bgCard, borderRadius: radius.md,
+    padding: spacing.md, borderWidth: 1, borderColor: colors.border,
+  },
+  featureIcon: { fontSize: 22, marginBottom: 6 },
+  featureTitle: { fontSize: 13, fontWeight: '800', color: colors.textPrimary },
+  featureSub: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+
+  ratingBar: {
+    margin: spacing.lg, marginTop: spacing.xl, backgroundColor: colors.bgCard,
+    borderRadius: radius.lg, padding: spacing.md, flexDirection: 'row',
+    alignItems: 'center', gap: 12, borderWidth: 1, borderColor: colors.border,
+  },
 });
