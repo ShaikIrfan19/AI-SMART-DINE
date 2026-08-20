@@ -79,28 +79,36 @@ export default function CustomerHomeScreen({ navigation }) {
 
   const [fetchError, setFetchError] = useState(null);
 
-  // Fetch ALL items — try multiple strategies to handle different backend versions
+  // The shared restaurantId all menu items are stored under in MongoDB
+  const SHARED_RESTAURANT_ID = '60d0fe4f5311236168a109ca';
+
+  // Fetch ALL items — try multiple strategies to handle old Render backend
   const fetchMenu = useCallback(async () => {
     setFetchError(null);
     try {
-      // Strategy 1: Plain GET /menu (works with our new backend)
-      let res = await api.get('/menu?limit=200');
+      // Strategy 1: Query with the shared restaurantId (items are stored under this ID)
+      let res = await api.get(`/menu?restaurantId=${SHARED_RESTAURANT_ID}&limit=200`);
       let data = res.data?.data || [];
 
-      // Strategy 2: If empty, try with isAvailable=true (old backend fallback)
+      // Strategy 2: Plain GET /menu with no filters
       if (data.length === 0) {
         try {
-          res = await api.get('/menu?isAvailable=true&limit=200');
+          res = await api.get('/menu?limit=200');
           data = res.data?.data || [];
         } catch {}
       }
 
-      // Strategy 3: If still empty, try with page param
+      // Strategy 3: With isAvailable=true
       if (data.length === 0) {
         try {
-          res = await api.get('/menu?page=1&limit=200');
+          res = await api.get(`/menu?restaurantId=${SHARED_RESTAURANT_ID}&isAvailable=true&limit=200`);
           data = res.data?.data || [];
         } catch {}
+      }
+
+      // Strategy 4: Try res.data.items (different API format)
+      if (data.length === 0 && res.data?.items?.length > 0) {
+        data = res.data.items;
       }
 
       setAllMenuItems(data);
