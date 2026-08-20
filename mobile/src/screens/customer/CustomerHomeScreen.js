@@ -77,13 +77,36 @@ export default function CustomerHomeScreen({ navigation }) {
     return matchesCat && matchesSearch;
   });
 
-  // Fetch ALL items — no restaurantId filter, no isAvailable filter
+  const [fetchError, setFetchError] = useState(null);
+
+  // Fetch ALL items — try multiple strategies to handle different backend versions
   const fetchMenu = useCallback(async () => {
+    setFetchError(null);
     try {
-      const res = await api.get('/menu');
-      setAllMenuItems(res.data.data || []);
+      // Strategy 1: Plain GET /menu (works with our new backend)
+      let res = await api.get('/menu?limit=200');
+      let data = res.data?.data || [];
+
+      // Strategy 2: If empty, try with isAvailable=true (old backend fallback)
+      if (data.length === 0) {
+        try {
+          res = await api.get('/menu?isAvailable=true&limit=200');
+          data = res.data?.data || [];
+        } catch {}
+      }
+
+      // Strategy 3: If still empty, try with page param
+      if (data.length === 0) {
+        try {
+          res = await api.get('/menu?page=1&limit=200');
+          data = res.data?.data || [];
+        } catch {}
+      }
+
+      setAllMenuItems(data);
     } catch (e) {
-      // silent fail — show empty state
+      const errMsg = e.response?.data?.message || e.message || 'Network error';
+      setFetchError(errMsg);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -92,7 +115,6 @@ export default function CustomerHomeScreen({ navigation }) {
 
   useEffect(() => {
     fetchMenu();
-    // Auto-refresh every 30s to stay in sync with admin changes
     const timer = setInterval(fetchMenu, 30000);
     return () => clearInterval(timer);
   }, [fetchMenu]);
@@ -167,6 +189,20 @@ export default function CustomerHomeScreen({ navigation }) {
               <ActivityIndicator size="large" color={colors.green} />
               <Text style={styles.loadingText}>Loading menu...</Text>
             </View>
+          ) : fetchError ? (
+            <View style={styles.emptyBox}>
+              <Text style={{ fontSize: 40, marginBottom: 12 }}>⚠️</Text>
+              <Text style={styles.emptyTitle}>Could not load menu</Text>
+              <Text style={[styles.emptyText, { color: colors.red, marginBottom: 16, fontSize: 11 }]}>
+                {fetchError}
+              </Text>
+              <TouchableOpacity
+                onPress={() => { setLoading(true); fetchMenu(); }}
+                style={{ backgroundColor: colors.green, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 12 }}
+              >
+                <Text style={{ fontWeight: '800', color: '#000', fontSize: 14 }}>↻ Retry</Text>
+              </TouchableOpacity>
+            </View>
           ) : menuItems.length === 0 ? (
             <View style={styles.emptyBox}>
               <Text style={styles.emptyEmoji}>🍽️</Text>
@@ -174,8 +210,16 @@ export default function CustomerHomeScreen({ navigation }) {
                 {allMenuItems.length === 0 ? 'Menu is being updated' : 'No items in this category'}
               </Text>
               <Text style={styles.emptyText}>
-                {allMenuItems.length === 0 ? 'Please check back shortly' : 'Try selecting a different category'}
+                {allMenuItems.length === 0 ? 'Pull down to refresh' : 'Try selecting a different category'}
               </Text>
+              {allMenuItems.length === 0 && (
+                <TouchableOpacity
+                  onPress={() => { setLoading(true); fetchMenu(); }}
+                  style={{ marginTop: 16, backgroundColor: colors.green, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 12 }}
+                >
+                  <Text style={{ fontWeight: '800', color: '#000', fontSize: 14 }}>↻ Refresh Menu</Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
             menuItems.map(item => (
