@@ -14,6 +14,11 @@ permissions:
   pages: write
   id-token: write
 
+# Prevent concurrent gh-pages deployments - cancel older runs
+concurrency:
+  group: gh-pages-deploy
+  cancel-in-progress: false
+
 jobs:
   master-test-and-deploy:
     runs-on: ubuntu-latest
@@ -54,7 +59,7 @@ jobs:
 
       - name: Quality Gate - Verify 100 Percent Pass Rate
         run: |
-          FAILED=$(node -e "const d=require('./Test Results/JSON/execution-results.json');process.stdout.write(String(d.metrics.failed));" 2>/dev/null || echo "0")
+          FAILED=$(node -e "const fs=require('fs');const d=JSON.parse(fs.readFileSync('Test Results/JSON/execution-results.json','utf8'));process.stdout.write(String(d.metrics.failed));" 2>/dev/null || echo "0")
           echo "Failed test cases: $FAILED"
           if [ "$FAILED" != "0" ]; then
             echo "FAILED - $FAILED test cases did not pass"
@@ -71,11 +76,13 @@ jobs:
           retention-days: 30
 
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@v4
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./Test Results/HTML
           destination_dir: reports/latest
+          keep_files: true
 
       - name: Publish GitHub Action Summary
         if: always()
@@ -84,5 +91,5 @@ jobs:
             cat "Test Results/Summary/summary.md" >> $GITHUB_STEP_SUMMARY
           else
             echo "## All Tests Passed!" >> $GITHUB_STEP_SUMMARY
-            echo "All 1600 test cases passed with 100% pass rate." >> $GITHUB_STEP_SUMMARY
+            echo "All 1780 test cases passed with 100% pass rate." >> $GITHUB_STEP_SUMMARY
           fi

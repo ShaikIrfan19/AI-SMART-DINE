@@ -12,6 +12,11 @@ permissions:
   pages: write
   id-token: write
 
+# Serialize with master workflow to avoid gh-pages lock conflicts
+concurrency:
+  group: gh-pages-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy-and-selenium-test:
     runs-on: ubuntu-latest
@@ -32,12 +37,13 @@ jobs:
           node testing/reporting/master-report-generator.js
           node testing/reporting/excel-report-generator.js
 
-      - name: Deploy Live Web Dashboard to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+      - name: Upload Test Reports
+        uses: actions/upload-artifact@v4
+        if: always()
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./Test Results/HTML
-          destination_dir: reports/latest
+          name: E2E-Test-Reports
+          path: "Test Results/**"
+          retention-days: 30
 
       - name: Publish Summary to GitHub Actions
         if: always()
