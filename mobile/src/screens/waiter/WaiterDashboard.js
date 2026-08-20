@@ -65,6 +65,12 @@ export function WaiterDashboard({ navigation }) {
     // Socket listener for real-time waiter calls, table updates & reservations from customer
     const handleWaiterCall = (payload) => {
       console.log('🔔 [WaiterDashboard] Real-time socket event received:', payload);
+      if (payload && (payload.tableNumber || payload.message)) {
+        setCallAlerts(prev => {
+          const exists = prev.some(c => c._id === payload._id);
+          return exists ? prev : [payload, ...prev];
+        });
+      }
       checkStatusAndFetchData();
     };
 
