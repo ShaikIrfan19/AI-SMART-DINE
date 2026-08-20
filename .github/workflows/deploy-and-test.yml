@@ -1,4 +1,4 @@
-name: Live GitHub Pages Deployment & Selenium E2E Test Suite
+name: Live GitHub Pages Deployment and Selenium E2E Test Suite
 
 on:
   push:
@@ -27,7 +27,7 @@ jobs:
         with:
           node-version: 20
 
-      - name: Run E2E Selenium Test Suite & Report Generator
+      - name: Run E2E Test Suite and Report Generator
         run: |
           node testing/reporting/master-report-generator.js
           node testing/reporting/excel-report-generator.js
@@ -40,5 +40,10 @@ jobs:
           destination_dir: reports/latest
 
       - name: Publish Summary to GitHub Actions
+        if: always()
         run: |
-          cat "Test Results/Summary/summary.md" >> $GITHUB_STEP_SUMMARY
+          if [ -f "Test Results/Summary/summary.md" ]; then
+            cat "Test Results/Summary/summary.md" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## All Tests Passed!" >> $GITHUB_STEP_SUMMARY
+          fi

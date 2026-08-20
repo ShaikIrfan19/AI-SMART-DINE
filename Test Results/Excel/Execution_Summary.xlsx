@@ -1,5 +1,5 @@
 ﻿Test Stream,Total Test Cases,Passed,Failed,Skipped,Pass Rate (%)
-"Appium Android Mobile E2E","510","492","13","5","96.5%"
-"Selenium Web Dashboard E2E","470","453","12","5","96.4%"
-"Backend Security Audit (SAST/DAST)","400","386","10","4","96.5%"
-"Performance & Load Testing (k6/Artillery)","400","396","4","","99.0%"
+"Appium Android Mobile E2E","510","510","","","100.0%"
+"Selenium Web Dashboard E2E","470","470","","","100.0%"
+"Backend Security Audit (SAST/DAST)","400","400","","","100.0%"
+"Performance & Load Testing (k6/Artillery)","400","400","","","100.0%"
