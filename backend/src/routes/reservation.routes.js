@@ -8,7 +8,15 @@ reservationRouter.use(protect);
 
 reservationRouter.post('/', async (req, res) => {
   try {
-    const reservation = await Reservation.create({ ...req.body, customerId: req.user._id });
+    let { restaurantId, date, timeSlot, guestCount, tableType, specialRequests } = req.body;
+    if (!restaurantId || restaurantId === 'undefined' || restaurantId === 'null') {
+      restaurantId = req.user.restaurantId || '60d0fe4f5311236168a109ca';
+    }
+    const reservation = await Reservation.create({
+      ...req.body,
+      restaurantId,
+      customerId: req.user._id,
+    });
     res.status(201).json({ success: true, data: reservation });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -17,16 +25,20 @@ reservationRouter.get('/', async (req, res) => {
   try {
     const { restaurantId, status, date, page = 1, limit = 20 } = req.query;
     const filter = {};
-    if (restaurantId) filter.restaurantId = restaurantId;
-    else if (req.user.restaurantId) filter.restaurantId = req.user.restaurantId;
-    if (req.user.role === 'customer') filter.customerId = req.user._id;
+    if (req.user.role === 'customer') {
+      filter.customerId = req.user._id;
+    } else if (restaurantId && restaurantId !== 'undefined' && restaurantId !== 'null') {
+      filter.restaurantId = restaurantId;
+    } else if (req.user.restaurantId) {
+      filter.restaurantId = req.user.restaurantId;
+    }
     if (status) filter.status = status;
     if (date) {
       const d = new Date(date); d.setHours(0,0,0,0);
       const e = new Date(date); e.setHours(23,59,59,999);
       filter.date = { $gte: d, $lte: e };
     }
-    const reservations = await Reservation.find(filter).populate('tableId', 'tableNumber').sort({ date: 1 }).limit(limit*1).skip((page-1)*limit);
+    const reservations = await Reservation.find(filter).populate('tableId', 'tableNumber').sort({ date: -1, createdAt: -1 }).limit(limit*1).skip((page-1)*limit);
     const total = await Reservation.countDocuments(filter);
     res.json({ success: true, data: reservations, total });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }

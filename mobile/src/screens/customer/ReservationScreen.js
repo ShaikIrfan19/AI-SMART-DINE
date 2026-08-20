@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  TextInput, Alert, ActivityIndicator,
+  TextInput, Alert, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -13,42 +13,61 @@ const TIME_SLOTS = ['11:00 - 13:00', '13:00 - 15:00', '15:00 - 17:00', '17:00 - 
 const TABLE_TYPES = ['regular', 'couple', 'family', 'vip', 'window', 'outdoor'];
 const TABLE_TYPE_ICONS = { regular: '🪑', couple: '💑', family: '👨‍👩‍👧', vip: '👑', window: '🪟', outdoor: '🌿' };
 
+const SHARED_RESTAURANT_ID = '60d0fe4f5311236168a109ca';
+
 export function ReservationScreen() {
   const { user } = useSelector(s => s.auth);
-  const [step, setStep] = useState(1);
   const [form, setForm] = useState({
     customerName: user?.name || '',
     customerPhone: user?.phone || '',
     customerEmail: user?.email || '',
     guestCount: 2,
     tableType: 'regular',
-    date: '',
-    timeSlot: '',
+    date: new Date().toISOString().split('T')[0],
+    timeSlot: '19:00 - 21:00',
     specialRequests: '',
   });
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [reservations, setReservations] = useState([]);
   const [showNew, setShowNew] = useState(false);
 
-  useEffect(() => {
-    const rid = user?.restaurantId?._id || user?.restaurantId;
-    if (rid) {
-      api.get(`/reservations?restaurantId=${rid}`).then(res => setReservations(res.data.data)).catch(() => {});
+  const fetchReservations = async () => {
+    try {
+      const res = await api.get('/reservations');
+      setReservations(res.data.data || []);
+    } catch {} finally {
+      setFetching(false);
+      setRefreshing(false);
     }
-  }, [user]);
+  };
+
+  useEffect(() => {
+    fetchReservations();
+  }, []);
 
   const handleSubmit = async () => {
-    if (!form.date || !form.timeSlot) return Alert.alert('Error', 'Please select date and time slot');
+    const selectedDate = form.date || new Date().toISOString().split('T')[0];
+    if (!form.timeSlot) return Alert.alert('Error', 'Please select a time slot');
     setLoading(true);
-    const rid = user?.restaurantId?._id || user?.restaurantId;
+    const rid = user?.restaurantId?._id || user?.restaurantId || SHARED_RESTAURANT_ID;
     try {
-      const res = await api.post('/reservations', { ...form, restaurantId: rid });
-      setReservations(prev => [res.data.data, ...prev]);
+      const res = await api.post('/reservations', {
+        ...form,
+        date: selectedDate,
+        restaurantId: rid,
+      });
+      const newRes = res.data.data;
+      if (newRes) {
+        setReservations(prev => [newRes, ...prev]);
+      }
       setShowNew(false);
-      Alert.alert('Reservation Confirmed! 🎉', `Your reservation #${res.data.data.reservationNumber} has been created.`);
-      setForm({ ...form, date: '', timeSlot: '', specialRequests: '' });
+      Alert.alert('Reservation Confirmed! 🎉', `Your reservation #${newRes?.reservationNumber || ''} has been created.`);
+      setForm({ ...form, specialRequests: '' });
+      fetchReservations();
     } catch (err) {
-      Alert.alert('Error', err.response?.data?.message || 'Reservation failed');
+      Alert.alert('Error', err.response?.data?.message || err.message || 'Reservation failed');
     } finally { setLoading(false); }
   };
 
@@ -56,11 +75,24 @@ export function ReservationScreen() {
     Alert.alert('Cancel Reservation', 'Are you sure you want to cancel?', [
       { text: 'No' },
       { text: 'Yes, Cancel', style: 'destructive', onPress: async () => {
-        try { await api.delete(`/reservations/${id}`); setReservations(prev => prev.filter(r => r._id !== id)); }
-        catch { Alert.alert('Error', 'Failed to cancel'); }
+        try {
+          await api.delete(`/reservations/${id}`);
+          setReservations(prev => prev.filter(r => r._id !== id));
+        } catch { Alert.alert('Error', 'Failed to cancel reservation'); }
       }},
     ]);
   };
+
+  // Helper for quick date chips
+  const getDateOffsetStr = (offsetDays) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offsetDays);
+    return d.toISOString().split('T')[0];
+  };
+
+  const todayStr = getDateOffsetStr(0);
+  const tomorrowStr = getDateOffsetStr(1);
+  const dayAfterStr = getDateOffsetStr(2);
 
   return (
     <View style={styles.container}>
@@ -71,10 +103,14 @@ export function ReservationScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 32 }}>
+      <ScrollView
+        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 32 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchReservations(); }} tintColor={colors.green} />}
+      >
         {showNew && (
           <View style={styles.formCard}>
-            <Text style={styles.formTitle}>New Reservation</Text>
+            <Text style={styles.formTitle}>New Table Reservation</Text>
+
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Guest Count</Text>
               <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -85,6 +121,7 @@ export function ReservationScreen() {
                 ))}
               </View>
             </View>
+
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Table Type</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -98,10 +135,35 @@ export function ReservationScreen() {
                 </View>
               </ScrollView>
             </View>
+
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Date (YYYY-MM-DD)</Text>
-              <TextInput style={styles.input} placeholder="2025-12-25" placeholderTextColor={colors.textMuted} value={form.date} onChangeText={v => setForm({ ...form, date: v })} />
+              <Text style={styles.label}>Date</Text>
+              {/* Quick Date Chips */}
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                {[
+                  { label: 'Today', val: todayStr },
+                  { label: 'Tomorrow', val: tomorrowStr },
+                  { label: 'Day After', val: dayAfterStr },
+                ].map(d => (
+                  <TouchableOpacity
+                    key={d.label}
+                    style={[{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: colors.bgSecondary, borderWidth: 1, borderColor: colors.border },
+                      form.date === d.val && { backgroundColor: colors.green, borderColor: colors.green }]}
+                    onPress={() => setForm({ ...form, date: d.val })}
+                  >
+                    <Text style={[{ fontSize: 12, fontWeight: '700', color: colors.textSecondary }, form.date === d.val && { color: '#000' }]}>{d.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TextInput
+                style={styles.input}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={colors.textMuted}
+                value={form.date}
+                onChangeText={v => setForm({ ...form, date: v })}
+              />
             </View>
+
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Time Slot</Text>
               {TIME_SLOTS.map(t => (
@@ -111,19 +173,29 @@ export function ReservationScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Special Requests</Text>
               <TextInput style={[styles.input, { minHeight: 80, textAlignVertical: 'top' }]} placeholder="Birthday, anniversary, dietary..." placeholderTextColor={colors.textMuted} value={form.specialRequests} onChangeText={v => setForm({ ...form, specialRequests: v })} multiline />
             </View>
+
             <TouchableOpacity style={[styles.submitBtn, loading && { opacity: 0.7 }]} onPress={handleSubmit} disabled={loading}>
               {loading ? <ActivityIndicator color="#000" /> : <Text style={styles.submitBtnText}>Confirm Reservation →</Text>}
             </TouchableOpacity>
           </View>
         )}
 
-        <Text style={styles.sectionTitle}>My Reservations</Text>
-        {reservations.length === 0 ? (
-          <View style={styles.emptyBox}><Text style={{ fontSize: 40, marginBottom: 12 }}>📅</Text><Text style={{ color: colors.textMuted, fontSize: 14 }}>No reservations yet</Text></View>
+        <Text style={styles.sectionTitle}>My Reservations ({reservations.length})</Text>
+        {fetching ? (
+          <ActivityIndicator color={colors.green} style={{ marginVertical: 24 }} />
+        ) : reservations.length === 0 ? (
+          <View style={styles.emptyBox}>
+            <Text style={{ fontSize: 40, marginBottom: 12 }}>📅</Text>
+            <Text style={{ color: colors.textMuted, fontSize: 14 }}>No reservations yet</Text>
+            <TouchableOpacity style={{ marginTop: 12, backgroundColor: colors.green, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 8 }} onPress={() => setShowNew(true)}>
+              <Text style={{ fontWeight: '800', color: '#000', fontSize: 13 }}>+ Book a Table</Text>
+            </TouchableOpacity>
+          </View>
         ) : (
           reservations.map(r => (
             <View key={r._id} style={styles.reservCard}>
