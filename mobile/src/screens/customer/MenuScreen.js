@@ -3,10 +3,11 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   TextInput, ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
+import { addItem, updateQuantity, selectCartTotal, selectCartCount } from '../../store/cartSlice';
 import api from '../../services/api';
 import socket from '../../services/socket';
-import { colors, spacing, radius } from '../../theme';
+import { colors, spacing, radius, shadows } from '../../theme';
 
 const CATEGORIES = [
   { key: 'all',        label: 'All',        emoji: '🍽️' },
@@ -18,7 +19,7 @@ const CATEGORIES = [
   { key: 'snacks',    label: 'Snacks',     emoji: '🍟' },
 ];
 
-function MenuItemCard({ item }) {
+function MenuItemCard({ item, qty, onAdd, onIncrease, onDecrease }) {
   const isUnavailable = item.isAvailable === false;
   const CAT_LABELS = {
     all: 'All', starters: 'Starters', main_course: 'Main Course',
@@ -50,18 +51,39 @@ function MenuItemCard({ item }) {
           <Text style={styles.menuDesc} numberOfLines={2}>{item.description}</Text>
         ) : null}
         <View style={styles.menuBottom}>
-          <Text style={styles.menuPrice}>₹{item.price}</Text>
-          {isUnavailable ? (
-            <View style={[styles.vegBadge, { backgroundColor: 'rgba(85,85,85,0.2)' }]}>
-              <Text style={[styles.vegText, { color: colors.textMuted }]}>Unavailable</Text>
-            </View>
-          ) : (
-            <View style={[styles.vegBadge, { backgroundColor: item.isVeg ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)' }]}>
-              <View style={[styles.vegDot, { backgroundColor: item.isVeg ? '#10b981' : '#ef4444' }]} />
-              <Text style={[styles.vegText, { color: item.isVeg ? '#10b981' : '#ef4444' }]}>
-                {item.isVeg ? 'Veg' : 'Non-Veg'}
-              </Text>
-            </View>
+          <View>
+            <Text style={styles.menuPrice}>₹{item.price}</Text>
+            {isUnavailable ? (
+              <View style={[styles.vegBadge, { backgroundColor: 'rgba(85,85,85,0.2)', marginTop: 4 }]}>
+                <Text style={[styles.vegText, { color: colors.textMuted }]}>Unavailable</Text>
+              </View>
+            ) : (
+              <View style={[styles.vegBadge, { backgroundColor: item.isVeg ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)', marginTop: 4 }]}>
+                <View style={[styles.vegDot, { backgroundColor: item.isVeg ? '#10b981' : '#ef4444' }]} />
+                <Text style={[styles.vegText, { color: item.isVeg ? '#10b981' : '#ef4444' }]}>
+                  {item.isVeg ? 'Veg' : 'Non-Veg'}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Add / Qty Control */}
+          {!isUnavailable && (
+            qty === 0 ? (
+              <TouchableOpacity style={styles.addBtn} onPress={onAdd} activeOpacity={0.8}>
+                <Text style={styles.addBtnText}>+ Add</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.qtyControlRow}>
+                <TouchableOpacity style={styles.qtyBtn} onPress={onDecrease}>
+                  <Text style={styles.qtyBtnText}>−</Text>
+                </TouchableOpacity>
+                <Text style={styles.qtyVal}>{qty}</Text>
+                <TouchableOpacity style={[styles.qtyBtn, { backgroundColor: colors.green }]} onPress={onIncrease}>
+                  <Text style={[styles.qtyBtnText, { color: '#000' }]}>+</Text>
+                </TouchableOpacity>
+              </View>
+            )
           )}
         </View>
       </View>
@@ -80,8 +102,12 @@ const DEFAULT_MENU_ITEMS = [
   { _id: 'def8', name: 'Peri Peri French Fries', price: 140, category: 'snacks', description: 'Crispy potato fries tossed in spicy peri peri seasoning.', isVeg: true, isAvailable: true },
 ];
 
-export default function MenuScreen() {
+export default function MenuScreen({ navigation }) {
   const { user } = useSelector(state => state.auth);
+  const dispatch = useDispatch();
+  const cartItems = useSelector(s => s.cart.items);
+  const cartTotal = useSelector(selectCartTotal);
+  const cartCount = useSelector(selectCartCount);
 
   const [allMenuItems, setAllMenuItems] = useState([]);
   const [loading, setLoading]     = useState(true);
@@ -97,7 +123,6 @@ export default function MenuScreen() {
     try {
       const res = await api.get('/menu');
       const data = res.data?.data || [];
-      // If backend returns items use them, otherwise use fallback defaults
       setAllMenuItems(data.length > 0 ? data : DEFAULT_MENU_ITEMS);
     } catch (e) {
       setAllMenuItems(DEFAULT_MENU_ITEMS);
@@ -110,7 +135,6 @@ export default function MenuScreen() {
   useEffect(() => {
     fetchMenu();
 
-    // Socket listener for real-time menu updates (create, update, delete)
     const handleMenuUpdate = (payload) => {
       console.log('📡 [Customer MenuScreen] Real-time menu_updated event received:', payload);
       if (payload?.action === 'create' && payload.data) {
@@ -146,6 +170,23 @@ export default function MenuScreen() {
       item.name?.toLowerCase().includes(search.trim().toLowerCase());
     return matchesCat && matchesSearch;
   });
+
+  const getQty = (id) => cartItems.find(i => i.menuItemId === id)?.quantity || 0;
+
+  const handleAddItem = (item) => {
+    dispatch(addItem({
+      menuItemId: item._id,
+      name: item.name,
+      price: item.price,
+      isVeg: item.isVeg,
+      image: item.image,
+      quantity: 1,
+    }));
+  };
+
+  const handleUpdateQty = (item, nextQty) => {
+    dispatch(updateQuantity({ menuItemId: item._id, quantity: nextQty }));
+  };
 
   const handleCallWaiter = async () => {
     console.log('🔔 [Customer] Emitting call_waiter socket event...');
@@ -185,6 +226,7 @@ export default function MenuScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: cartCount > 0 ? 100 : 32 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchMenu(); }} tintColor={colors.green} />}
       >
         {/* Search */}
@@ -270,12 +312,39 @@ export default function MenuScreen() {
               )}
             </View>
           ) : (
-            menuItems.map((item, index) => (
-              <MenuItemCard key={`${item._id || item.name}-${index}`} item={item} />
-            ))
+            menuItems.map((item, index) => {
+              const qty = getQty(item._id);
+              return (
+                <MenuItemCard
+                  key={`${item._id || item.name}-${index}`}
+                  item={item}
+                  qty={qty}
+                  onAdd={() => handleAddItem(item)}
+                  onIncrease={() => handleUpdateQty(item, qty + 1)}
+                  onDecrease={() => handleUpdateQty(item, qty - 1)}
+                />
+              );
+            })
           )}
         </View>
       </ScrollView>
+
+      {/* Floating Bottom Cart Bar */}
+      {cartCount > 0 && (
+        <View style={styles.floatingCartBar}>
+          <View>
+            <Text style={styles.floatingCartCount}>{cartCount} item{cartCount > 1 ? 's' : ''} in cart</Text>
+            <Text style={styles.floatingCartTotal}>₹{cartTotal.toFixed(0)}</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.floatingCartBtn}
+            onPress={() => navigation.navigate('Cart')}
+            activeOpacity={0.9}
+          >
+            <Text style={styles.floatingCartBtnText}>View Cart 🛒 →</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
@@ -298,8 +367,8 @@ const styles = StyleSheet.create({
   categoryLabelActive: { color: '#000' },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: colors.textPrimary, marginBottom: spacing.md },
   menuCard: { flexDirection: 'row', backgroundColor: colors.bgCard, borderRadius: radius.lg, marginBottom: spacing.md, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
-  menuImageBox: { width: 100, backgroundColor: colors.bgSecondary, alignItems: 'center', justifyContent: 'center', position: 'relative' },
-  menuEmoji: { fontSize: 36 },
+  menuImageBox: { width: 95, backgroundColor: colors.bgSecondary, alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  menuEmoji: { fontSize: 34 },
   hotBadge: { position: 'absolute', top: 6, left: 6, backgroundColor: 'rgba(239,68,68,0.9)', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 },
   hotBadgeText: { fontSize: 9, fontWeight: '800', color: '#fff' },
   menuInfo: { flex: 1, padding: 12 },
@@ -308,13 +377,30 @@ const styles = StyleSheet.create({
   menuDesc: { fontSize: 12, color: colors.textMuted, lineHeight: 17, marginBottom: 6 },
   menuBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 },
   menuPrice: { fontSize: 17, fontWeight: '800', color: colors.green },
-  vegBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 99 },
-  vegDot: { width: 7, height: 7, borderRadius: 99 },
-  vegText: { fontSize: 11, fontWeight: '700' },
+  vegBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 99, alignSelf: 'flex-start' },
+  vegDot: { width: 6, height: 6, borderRadius: 99 },
+  vegText: { fontSize: 10, fontWeight: '700' },
+  addBtn: { backgroundColor: colors.green, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 7 },
+  addBtnText: { fontSize: 12, fontWeight: '800', color: '#000' },
+  qtyControlRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  qtyBtn: { width: 28, height: 28, borderRadius: 7, backgroundColor: colors.bgSecondary, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  qtyBtnText: { fontSize: 16, color: colors.textPrimary, lineHeight: 20 },
+  qtyVal: { fontSize: 14, fontWeight: '800', color: colors.textPrimary, minWidth: 18, textAlign: 'center' },
   loadingBox: { alignItems: 'center', padding: 48 },
   loadingText: { color: colors.textMuted, marginTop: 12 },
   emptyBox: { alignItems: 'center', padding: 48 },
   emptyEmoji: { fontSize: 48, marginBottom: 12, opacity: 0.5 },
   emptyTitle: { fontSize: 17, fontWeight: '700', color: colors.textPrimary, marginBottom: 6 },
   emptyText: { fontSize: 13, color: colors.textMuted, textAlign: 'center' },
+  floatingCartBar: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    backgroundColor: colors.bgSecondary, borderTopWidth: 1, borderTopColor: colors.border,
+    paddingHorizontal: spacing.lg, paddingVertical: 12,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    ...shadows.green,
+  },
+  floatingCartCount: { fontSize: 11, color: colors.textMuted },
+  floatingCartTotal: { fontSize: 18, fontWeight: '900', color: colors.green },
+  floatingCartBtn: { backgroundColor: colors.green, borderRadius: radius.md, paddingHorizontal: 18, paddingVertical: 12 },
+  floatingCartBtnText: { fontSize: 13, fontWeight: '800', color: '#000' },
 });

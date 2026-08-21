@@ -4,6 +4,7 @@ import {
   ActivityIndicator, RefreshControl, Alert, Image,
 } from 'react-native';
 import { useSelector } from 'react-redux';
+import { selectCartTotal, selectCartCount } from '../../store/cartSlice';
 import api from '../../services/api';
 import { colors, spacing, radius, shadows } from '../../theme';
 
@@ -47,6 +48,8 @@ const DEFAULT_MENU_ITEMS = [
 
 export default function CustomerHomeScreen({ navigation }) {
   const { user } = useSelector(state => state.auth);
+  const cartTotal = useSelector(selectCartTotal);
+  const cartCount = useSelector(selectCartCount);
   const [popularItems, setPopularItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -322,6 +325,23 @@ export default function CustomerHomeScreen({ navigation }) {
           </View>
         </View>
       </ScrollView>
+
+      {/* Floating Bottom Cart Bar */}
+      {cartCount > 0 && (
+        <View style={styles.floatingCartBar}>
+          <View>
+            <Text style={styles.floatingCartCount}>{cartCount} item{cartCount > 1 ? 's' : ''} in cart</Text>
+            <Text style={styles.floatingCartTotal}>₹{cartTotal.toFixed(0)}</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.floatingCartBtn}
+            onPress={() => navigation.navigate('Cart')}
+            activeOpacity={0.9}
+          >
+            <Text style={styles.floatingCartBtnText}>View Cart 🛒 →</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
@@ -421,4 +441,15 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg, padding: spacing.md, flexDirection: 'row',
     alignItems: 'center', gap: 12, borderWidth: 1, borderColor: colors.border,
   },
+  floatingCartBar: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    backgroundColor: colors.bgSecondary, borderTopWidth: 1, borderTopColor: colors.border,
+    paddingHorizontal: spacing.lg, paddingVertical: 12,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    ...shadows.green,
+  },
+  floatingCartCount: { fontSize: 11, color: colors.textMuted },
+  floatingCartTotal: { fontSize: 18, fontWeight: '900', color: colors.green },
+  floatingCartBtn: { backgroundColor: colors.green, borderRadius: radius.md, paddingHorizontal: 18, paddingVertical: 12 },
+  floatingCartBtnText: { fontSize: 13, fontWeight: '800', color: '#000' },
 });

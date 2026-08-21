@@ -18,15 +18,17 @@ export default function CartScreen({ navigation }) {
   const { items, restaurantId, tableId, tableNumber, notes } = useSelector(s => s.cart);
   const { user } = useSelector(s => s.auth);
   const subtotal = useSelector(selectCartTotal);
+  const [selectedTable, setSelectedTable] = useState(tableNumber || '1');
   const [payMethod, setPayMethod] = useState('cash');
   const [coupon, setCoupon] = useState('');
   const [couponDiscount, setCouponDiscount] = useState(0);
   const [couponMsg, setCouponMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const SHARED_RESTAURANT_ID = '60d0fe4f5311236168a109ca';
   const GST_PERCENT = 18;
   const gstAmount = (subtotal * GST_PERCENT) / 100;
-  const total = subtotal + gstAmount - couponDiscount;
+  const total = Math.max(0, subtotal + gstAmount - couponDiscount);
 
   const applyCoupon = async () => {
     if (!coupon.trim()) return;
@@ -44,19 +46,37 @@ export default function CartScreen({ navigation }) {
     if (items.length === 0) return Alert.alert('Empty Cart', 'Please add items to your cart first.');
     setLoading(true);
     try {
+      const rid = restaurantId || user?.restaurantId?._id || user?.restaurantId || SHARED_RESTAURANT_ID;
+      const tid = tableId || 'tab1';
+      const tnum = String(selectedTable || tableNumber || '1');
+
       const orderPayload = {
-        restaurantId,
-        tableId,
-        items: items.map(i => ({ menuItemId: i.menuItemId, name: i.name, price: i.price, quantity: i.quantity, notes: i.notes, addons: i.addons })),
+        restaurantId: rid,
+        tableId: tid,
+        tableNumber: tnum,
+        items: items.map(i => ({
+          menuItemId: i.menuItemId,
+          name: i.name,
+          price: i.price,
+          quantity: i.quantity,
+          isVeg: i.isVeg,
+          notes: i.notes || '',
+          addons: i.addons || [],
+        })),
         notes,
         orderType: 'dine_in',
+        paymentMethod: payMethod,
       };
       const orderRes = await api.post('/orders', orderPayload);
       const order = orderRes.data.data;
 
-      Alert.alert('Order Placed! ✅', `Your order #${order.orderNumber} has been placed. Pay ₹${total.toFixed(2)} at the counter or via UPI.`, [{ text: 'OK', onPress: () => { dispatch(clearCart()); navigation.navigate('Orders'); } }]);
+      Alert.alert(
+        'Order Placed! ✅',
+        `Your order #${order.orderNumber || ''} has been placed for Table ${tnum}.\n\nTotal: ₹${total.toFixed(0)} (${payMethod.toUpperCase()})`,
+        [{ text: 'View Order →', onPress: () => { dispatch(clearCart()); navigation.navigate('Orders'); } }]
+      );
     } catch (err) {
-      Alert.alert('Error', err.response?.data?.message || 'Failed to place order');
+      Alert.alert('Order Failed', err.response?.data?.message || err.message || 'Failed to place order');
     } finally { setLoading(false); }
   };
 
@@ -87,13 +107,26 @@ export default function CartScreen({ navigation }) {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
-        {/* Table Info */}
-        {tableNumber && (
-          <View style={styles.tableInfoBar}>
-            <Text style={styles.tableInfoText}>🪑 Table {tableNumber}</Text>
-            <Text style={styles.tableInfoSub}>Dine-in order</Text>
+        {/* Table Selection Bar */}
+        <View style={styles.tableInfoBar}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.tableInfoText}>🪑 Dine-in Table: Table {selectedTable}</Text>
+            <Text style={styles.tableInfoSub}>Select your table number below</Text>
           </View>
-        )}
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            {['1', '2', '3', '4', '5'].map(num => (
+              <TouchableOpacity
+                key={num}
+                onPress={() => setSelectedTable(num)}
+                style={[{ width: 32, height: 32, borderRadius: 8, backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }, selectedTable === num && { backgroundColor: colors.green, borderColor: colors.green }]}
+              >
+                <Text style={[{ fontSize: 12, fontWeight: '800', color: colors.textPrimary }, selectedTable === num && { color: '#000' }]}>
+                  {num}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
 
         {/* Cart Items */}
         <View style={{ padding: spacing.lg }}>
