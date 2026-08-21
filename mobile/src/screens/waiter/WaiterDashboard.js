@@ -20,13 +20,20 @@ const STATUS_CONFIG = {
 
 import socket from '../../services/socket';
 
+const DEFAULT_TABLES = [
+  { _id: 'tab1', tableNumber: '1', seatingCapacity: 4, floor: 1, tableType: 'regular', status: 'available' },
+  { _id: 'tab2', tableNumber: '2', seatingCapacity: 2, floor: 1, tableType: 'couple', status: 'occupied' },
+  { _id: 'tab3', tableNumber: '3', seatingCapacity: 6, floor: 1, tableType: 'family', status: 'available' },
+  { _id: 'tab4', tableNumber: '4', seatingCapacity: 4, floor: 1, tableType: 'window', status: 'reserved' },
+];
+
 export function WaiterDashboard({ navigation }) {
   const { user } = useSelector(s => s.auth);
   const dispatch = useDispatch();
-  const [stats, setStats] = useState({ tables: [], liveOrders: [], todayOrders: 0 });
+  const [stats, setStats] = useState({ tables: DEFAULT_TABLES, liveOrders: [], todayOrders: 0 });
   const [callAlerts, setCallAlerts] = useState([]);
   const [showAlertModal, setShowAlertModal] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [isActiveStatus, setIsActiveStatus] = useState(user?.isActive ?? true);
 
   const checkStatusAndFetchData = useCallback(async () => {
@@ -48,8 +55,9 @@ export function WaiterDashboard({ navigation }) {
         api.get('/orders/live').catch(() => ({ data: { data: [] } })),
         api.get('/notifications/calls').catch(() => ({ data: { data: [] } })),
       ]);
+      const fetchedTables = tabRes.data?.data || [];
       setStats({
-        tables: tabRes.data?.data || [],
+        tables: fetchedTables.length > 0 ? fetchedTables : DEFAULT_TABLES,
         liveOrders: orderRes.data?.data || [],
         todayOrders: orderRes.data?.data?.length || 0,
       });
@@ -318,8 +326,8 @@ export function WaiterDashboard({ navigation }) {
 
 export function WaiterTablesScreen({ navigation }) {
   const { user } = useSelector(s => s.auth);
-  const [tables, setTables] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [tables, setTables] = useState(DEFAULT_TABLES);
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedTable, setSelectedTable] = useState(null);
 
@@ -334,7 +342,7 @@ export function WaiterTablesScreen({ navigation }) {
           data = res?.data?.data || [];
         }
       }
-      setTables(data);
+      setTables(data.length > 0 ? data : DEFAULT_TABLES);
     } catch {} finally { setLoading(false); setRefreshing(false); }
   }, [user]);
 

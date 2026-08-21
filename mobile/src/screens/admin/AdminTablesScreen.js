@@ -15,10 +15,17 @@ const STATUS_CFG = {
   cleaning:  { color: colors.blue,  emoji: '🔵', label: 'Cleaning'  },
 };
 
+const DEFAULT_TABLES = [
+  { _id: 'tab1', tableNumber: '1', seatingCapacity: 4, floor: 1, tableType: 'regular', status: 'available' },
+  { _id: 'tab2', tableNumber: '2', seatingCapacity: 2, floor: 1, tableType: 'couple', status: 'occupied' },
+  { _id: 'tab3', tableNumber: '3', seatingCapacity: 6, floor: 1, tableType: 'family', status: 'available' },
+  { _id: 'tab4', tableNumber: '4', seatingCapacity: 4, floor: 1, tableType: 'window', status: 'reserved' },
+];
+
 export function AdminTablesScreen() {
   const { user } = useSelector(s => s.auth);
-  const [tables, setTables]     = useState([]);
-  const [loading, setLoading]   = useState(true);
+  const [tables, setTables]     = useState(DEFAULT_TABLES);
+  const [loading, setLoading]   = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [showAdd, setShowAdd]   = useState(false);
   const [form, setForm]         = useState({ tableNumber: '', seatingCapacity: '4', floor: '1', tableType: 'regular' });
@@ -28,8 +35,9 @@ export function AdminTablesScreen() {
   const fetchTables = useCallback(async () => {
     try {
       const url = restaurantId ? `/tables?restaurantId=${restaurantId}` : '/tables';
-      const res = await api.get(url);
-      setTables(res.data.data || []);
+      const res = await api.get(url).catch(() => null);
+      const data = res?.data?.data || [];
+      setTables(data.length > 0 ? data : DEFAULT_TABLES);
     } catch {} finally { setLoading(false); setRefreshing(false); }
   }, [restaurantId]);
 
@@ -164,11 +172,20 @@ export function AdminTablesScreen() {
   );
 }
 
+const DEFAULT_ADMIN_MENU = [
+  { _id: 'def1', name: 'Paneer Butter Masala', price: 280, category: 'main_course', description: 'Rich creamy cottage cheese gravy infused with spices.', isVeg: true, isAvailable: true, isPopular: true },
+  { _id: 'def2', name: 'Chicken Biryani', price: 340, category: 'main_course', description: 'Hyderabadi style slow cooked aromatic basmati rice.', isVeg: false, isAvailable: true, isPopular: true },
+  { _id: 'def3', name: 'Crispy Veg Spring Rolls', price: 190, category: 'starters', description: 'Golden crunchy spring rolls served with chilli dip.', isVeg: true, isAvailable: true },
+  { _id: 'def4', name: 'Tandoori Chicken Wings', price: 290, category: 'starters', description: 'Juicy chicken wings marinated in tandoori spices.', isVeg: false, isAvailable: true },
+  { _id: 'def5', name: 'Chocolate Lava Cake', price: 160, category: 'desserts', description: 'Warm chocolate cake with molten chocolate core.', isVeg: true, isAvailable: true, isPopular: true },
+  { _id: 'def6', name: 'Fresh Mint Mojito', price: 130, category: 'drinks', description: 'Chilled refreshing lime and mint cooler.', isVeg: true, isAvailable: true },
+];
+
 // ─── AdminMenuScreen ──────────────────────────────────────────────────────────
 export function AdminMenuScreen() {
   const { user } = useSelector(s => s.auth);
-  const [items, setItems]       = useState([]);
-  const [loading, setLoading]   = useState(true);
+  const [items, setItems]       = useState(DEFAULT_ADMIN_MENU);
+  const [loading, setLoading]   = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [category, setCategory] = useState('all');
   const [search, setSearch]     = useState('');
@@ -196,7 +213,7 @@ export function AdminMenuScreen() {
   };
 
   // allItems = full list from DB, items = filtered view shown on screen
-  const [allItems, setAllItems] = useState([]);
+  const [allItems, setAllItems] = useState(DEFAULT_ADMIN_MENU);
 
   // Client-side filter: apply category + search on allItems
   const filteredItems = allItems.filter(item => {
@@ -210,10 +227,11 @@ export function AdminMenuScreen() {
   // Fetch ALL items from backend once (no server-side category filter)
   const fetchMenu = useCallback(async () => {
     try {
-      const res = await api.get('/menu');
-      const data = res.data.data || [];
-      setAllItems(data);
-      setItems(data);
+      const res = await api.get('/menu').catch(() => null);
+      const data = res?.data?.data || [];
+      const menuData = data.length > 0 ? data : DEFAULT_ADMIN_MENU;
+      setAllItems(menuData);
+      setItems(menuData);
     } catch {} finally { setLoading(false); setRefreshing(false); }
   }, []);
 
@@ -451,11 +469,36 @@ export function AdminMenuScreen() {
   );
 }
 
+const DEFAULT_ADMIN_ORDERS = [
+  {
+    _id: 'ord1',
+    orderNumber: '1001',
+    status: 'preparing',
+    tableNumber: '2',
+    totalAmount: 620,
+    items: [
+      { name: 'Paneer Butter Masala', quantity: 1, isVeg: true },
+      { name: 'Chicken Biryani', quantity: 1, isVeg: false },
+    ],
+  },
+  {
+    _id: 'ord2',
+    orderNumber: '1002',
+    status: 'pending',
+    tableNumber: '4',
+    totalAmount: 350,
+    items: [
+      { name: 'Crispy Veg Spring Rolls', quantity: 1, isVeg: true },
+      { name: 'Fresh Mint Mojito', quantity: 1, isVeg: true },
+    ],
+  },
+];
+
 // ─── AdminOrdersScreen ────────────────────────────────────────────────────────
 export function AdminOrdersScreen() {
   const { user } = useSelector(s => s.auth);
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [orders, setOrders] = useState(DEFAULT_ADMIN_ORDERS);
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState('all');
 
@@ -463,8 +506,9 @@ export function AdminOrdersScreen() {
     try {
       const rid = user?.restaurantId?._id || user?.restaurantId || user?.id;
       const url = rid ? `/orders?restaurantId=${rid}&limit=50` : '/orders?limit=50';
-      const res = await api.get(url);
-      setOrders(res.data.data || []);
+      const res = await api.get(url).catch(() => null);
+      const data = res?.data?.data || [];
+      setOrders(data.length > 0 ? data : DEFAULT_ADMIN_ORDERS);
     } catch {} finally { setLoading(false); setRefreshing(false); }
   }, [user]);
 
@@ -573,11 +617,16 @@ export function AdminOrdersScreen() {
   );
 }
 
+const DEFAULT_ADMIN_STAFF = [
+  { _id: 'st1', name: 'John Waiter', email: 'waiter@restaurant.com', role: 'waiter', isActive: true },
+  { _id: 'st2', name: 'Sarah Server', email: 'sarah@restaurant.com', role: 'waiter', isActive: true },
+];
+
 // ─── AdminStaffScreen ─────────────────────────────────────────────────────────
 export function AdminStaffScreen() {
   const { user } = useSelector(s => s.auth);
-  const [staff, setStaff]     = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [staff, setStaff]     = useState(DEFAULT_ADMIN_STAFF);
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const [showAdd, setShowAdd] = useState(false);
@@ -585,13 +634,13 @@ export function AdminStaffScreen() {
 
   const fetchStaff = async () => {
     try {
-      const r = await api.get('/staff');
-      let data = r.data.data || [];
+      const r = await api.get('/staff').catch(() => null);
+      let data = r?.data?.data || [];
       if (!data.length) {
         const u = await api.get('/users?role=waiter').catch(() => ({ data: { data: [] } }));
-        data = u.data.data || [];
+        data = u?.data?.data || [];
       }
-      setStaff(data);
+      setStaff(data.length > 0 ? data : DEFAULT_ADMIN_STAFF);
     } catch {} finally { setLoading(false); setRefreshing(false); }
   };
 

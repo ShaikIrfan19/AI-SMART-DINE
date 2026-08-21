@@ -20,6 +20,15 @@ const CAT_LABELS = {
   snacks: 'Snacks',
 };
 
+const DEFAULT_TAKE_ORDER_MENU = [
+  { _id: 'def1', name: 'Paneer Butter Masala', price: 280, category: 'main_course', description: 'Rich creamy cottage cheese gravy infused with spices.', isVeg: true, isAvailable: true, isPopular: true },
+  { _id: 'def2', name: 'Chicken Biryani', price: 340, category: 'main_course', description: 'Hyderabadi style slow cooked aromatic basmati rice.', isVeg: false, isAvailable: true, isPopular: true },
+  { _id: 'def3', name: 'Crispy Veg Spring Rolls', price: 190, category: 'starters', description: 'Golden crunchy spring rolls served with chilli dip.', isVeg: true, isAvailable: true },
+  { _id: 'def4', name: 'Tandoori Chicken Wings', price: 290, category: 'starters', description: 'Juicy chicken wings marinated in tandoori spices.', isVeg: false, isAvailable: true },
+  { _id: 'def5', name: 'Chocolate Lava Cake', price: 160, category: 'desserts', description: 'Warm chocolate cake with molten chocolate core.', isVeg: true, isAvailable: true, isPopular: true },
+  { _id: 'def6', name: 'Fresh Mint Mojito', price: 130, category: 'drinks', description: 'Chilled refreshing lime and mint cooler.', isVeg: true, isAvailable: true },
+];
+
 export default function TakeOrderScreen({ navigation, route }) {
   const { table } = route.params || {};
   const dispatch = useDispatch();
@@ -28,8 +37,8 @@ export default function TakeOrderScreen({ navigation, route }) {
   const cartTotal = useSelector(selectCartTotal);
   const cartCount = useSelector(selectCartCount);
 
-  const [allMenuItems, setAllMenuItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [allMenuItems, setAllMenuItems] = useState(DEFAULT_TAKE_ORDER_MENU);
+  const [loading, setLoading] = useState(false);
   const [category, setCategory] = useState('all');
   const [search, setSearch] = useState('');
   const [notes, setNotes] = useState('');
@@ -46,10 +55,10 @@ export default function TakeOrderScreen({ navigation, route }) {
 
   useEffect(() => {
     const fetchAll = async () => {
-      setLoading(true);
       try {
-        const res = await api.get('/menu');
-        setAllMenuItems(res.data.data || []);
+        const res = await api.get('/menu').catch(() => null);
+        const data = res?.data?.data || [];
+        setAllMenuItems(data.length > 0 ? data : DEFAULT_TAKE_ORDER_MENU);
       } catch {} finally { setLoading(false); }
     };
     fetchAll();

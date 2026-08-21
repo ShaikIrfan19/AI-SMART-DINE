@@ -122,9 +122,9 @@ export default function AppNavigator() {
           </>
         ) : (
           <>
-            {user?.role === 'customer' && <Stack.Screen name="CustomerMain" component={CustomerTabs} />}
+            {(user?.role === 'customer' || !user?.role) && <Stack.Screen name="CustomerMain" component={CustomerTabs} />}
             {user?.role === 'waiter' && <Stack.Screen name="WaiterMain" component={WaiterTabs} />}
-            {(user?.role === 'restaurant_admin' || user?.role === 'super_admin') && <Stack.Screen name="AdminMain" component={AdminTabs} />}
+            {(user?.role === 'restaurant_admin' || user?.role === 'super_admin' || user?.role === 'admin') && <Stack.Screen name="AdminMain" component={AdminTabs} />}
             <Stack.Screen name="TakeOrder" component={TakeOrderScreen} />
             <Stack.Screen name="Cart" component={CartScreen} />
             <Stack.Screen name="ScanMenu" component={ScanMenuScreen} />

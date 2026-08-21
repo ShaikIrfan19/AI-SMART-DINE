@@ -40,7 +40,7 @@ export default function SplashScreen() {
         const user  = await AsyncStorage.getItem('asd_user');
         if (token && user) dispatch(setCredentials({ token, user: JSON.parse(user) }));
       } catch {}
-      setTimeout(() => dispatch(setSplashDone()), 2400);
+      setTimeout(() => dispatch(setSplashDone()), 900);
     };
     init();
   }, []);

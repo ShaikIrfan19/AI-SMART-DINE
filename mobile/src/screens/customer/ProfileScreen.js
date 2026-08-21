@@ -15,7 +15,7 @@ export default function ProfileScreen({ navigation }) {
   const dispatch = useDispatch();
 
   const [orders, setOrders]           = useState([]);
-  const [loading, setLoading]         = useState(true);
+  const [loading, setLoading]         = useState(false);
   const [refreshing, setRefreshing]   = useState(false);
   const [editVisible, setEditVisible] = useState(false);
   const [editForm, setEditForm]       = useState({ name: user?.name || '', phone: user?.phone || '' });

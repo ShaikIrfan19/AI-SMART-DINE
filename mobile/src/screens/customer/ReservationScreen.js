@@ -28,15 +28,17 @@ export function ReservationScreen() {
     specialRequests: '',
   });
   const [loading, setLoading] = useState(false);
-  const [fetching, setFetching] = useState(true);
+  const [fetching, setFetching] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [reservations, setReservations] = useState([]);
   const [showNew, setShowNew] = useState(false);
 
   const fetchReservations = async () => {
     try {
-      const res = await api.get('/reservations');
-      setReservations(res.data.data || []);
+      const res = await api.get('/reservations').catch(() => null);
+      if (res?.data?.data) {
+        setReservations(res.data.data);
+      }
     } catch {} finally {
       setFetching(false);
       setRefreshing(false);

@@ -5,9 +5,14 @@ const BASE_URL = process.env.API_URL || 'https://ai-smart-dine-backend.onrender.
 
 const api = axios.create({
   baseURL: BASE_URL,
-  timeout: 30000,
+  timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
 });
+
+// Non-blocking background health ping to keep backend warm
+setTimeout(() => {
+  axios.get(`${BASE_URL}/health`, { timeout: 8000 }).catch(() => {});
+}, 100);
 
 api.interceptors.request.use(async (config) => {
   const token = await AsyncStorage.getItem('asd_token');
