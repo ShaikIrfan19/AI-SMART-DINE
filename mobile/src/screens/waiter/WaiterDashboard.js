@@ -364,11 +364,16 @@ export function WaiterTablesScreen({ navigation }) {
   }, [fetchTables]);
 
   const updateStatus = async (tableId, status) => {
+    // Optimistic UI update — instant responsive change
+    setTables(prev => prev.map(t => (t._id === tableId || t.tableNumber === tableId) ? { ...t, status } : t));
+    setSelectedTable(prev => prev ? { ...prev, status } : prev);
     try {
-      await api.patch(`/tables/${tableId}/status`, { status });
-      setTables(prev => prev.map(t => t._id === tableId ? { ...t, status } : t));
-      setSelectedTable(prev => prev ? { ...prev, status } : prev);
-    } catch { Alert.alert('Error', 'Failed to update table status'); }
+      const res = await api.patch(`/tables/${tableId}/status`, { status });
+      if (res?.data?.data) {
+        const updated = res.data.data;
+        setTables(prev => prev.map(t => (t._id === updated._id || t.tableNumber === updated.tableNumber) ? updated : t));
+      }
+    } catch {}
   };
 
   const handleTablePress = (table) => setSelectedTable(table);

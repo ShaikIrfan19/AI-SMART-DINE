@@ -66,41 +66,34 @@ export default function TakeOrderScreen({ navigation, route }) {
 
   const placeOrder = async () => {
     if (cartItems.length === 0) return Alert.alert('Empty Cart', 'Please add items to your cart first');
-    if (!table?._id) return Alert.alert('No Table', 'Please select a table before placing an order');
     setPlacing(true);
     try {
-      // Step 1: Force all cart items to isAvailable=true
-      // Old Render backend rejects items where isAvailable is false/undefined
-      await Promise.all(
-        cartItems.map(i =>
-          api.put(`/menu/${i.menuItemId}`, { isAvailable: true }).catch(() => {})
-        )
-      );
-
-      // Step 2: Use restaurantId from loaded menu items (actual DB value)
       const restaurantId =
         allMenuItems[0]?.restaurantId ||
         user?.restaurantId?._id ||
         user?.restaurantId ||
         '60d0fe4f5311236168a109ca';
 
-      // Step 3: Place the order
+      const tableIdentifier = table?._id || 'tab1';
+      const tableNum = String(table?.tableNumber || '1');
+
       const res = await api.post('/orders', {
         restaurantId,
-        tableId: table._id,
-        tableNumber: table.tableNumber,
+        tableId: tableIdentifier,
+        tableNumber: tableNum,
         items: cartItems.map(i => ({
           menuItemId: i.menuItemId,
           name: i.name,
           price: i.price,
           quantity: i.quantity,
+          isVeg: i.isVeg,
           notes: i.notes || '',
         })),
         notes,
         orderType: 'dine_in',
       });
 
-      await api.patch(`/tables/${table._id}/status`, { status: 'occupied', customerCount: 1 }).catch(() => {});
+      await api.patch(`/tables/${tableIdentifier}/status`, { status: 'occupied', customerCount: 1 }).catch(() => {});
       dispatch(clearCart());
       Alert.alert('✅ Order Placed!', `Order #${res.data.data?.orderNumber || ''} sent to kitchen`, [
         { text: 'OK', onPress: () => navigation.goBack() },

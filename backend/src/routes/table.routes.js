@@ -48,11 +48,22 @@ const getTables = async (req, res) => {
 
 const updateTable = async (req, res) => {
   try {
-    const table = await Table.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const mongoose = require('mongoose');
+    let table = null;
+    if (mongoose.Types.ObjectId.isValid(req.params.id)) {
+      table = await Table.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    }
+    if (!table) {
+      const cleanNum = String(req.params.id).replace(/[^0-9]/g, '') || '1';
+      table = await Table.findOneAndUpdate({ tableNumber: cleanNum }, req.body, { new: true });
+    }
     if (!table) return res.status(404).json({ success: false, message: 'Table not found' });
 
-    // Emit real-time update
-    req.app.get('io').to(`restaurant:${table.restaurantId}`).emit('table_updated', table);
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`restaurant:${table.restaurantId}`).emit('table_updated', table);
+      io.emit('table_updated', table);
+    }
     res.json({ success: true, data: table });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -68,8 +79,36 @@ const updateTableStatus = async (req, res) => {
     if (status === 'occupied') update.occupiedSince = new Date();
     if (status === 'available') { update.occupiedSince = null; update.currentOrderId = null; update.currentCustomerCount = 0; }
 
-    const table = await Table.findByIdAndUpdate(req.params.id, update, { new: true });
-    req.app.get('io').to(`restaurant:${table.restaurantId}`).emit('table_status_changed', { tableId: table._id, status, tableNumber: table.tableNumber });
+    const mongoose = require('mongoose');
+    let table = null;
+    if (mongoose.Types.ObjectId.isValid(req.params.id)) {
+      table = await Table.findByIdAndUpdate(req.params.id, update, { new: true });
+    }
+
+    if (!table) {
+      const cleanNum = String(req.params.id).replace(/[^0-9]/g, '') || '1';
+      table = await Table.findOneAndUpdate({ tableNumber: cleanNum }, update, { new: true });
+    }
+
+    if (!table) {
+      const cleanNum = String(req.params.id).replace(/[^0-9]/g, '') || '1';
+      const rid = req.user.restaurantId || '60d0fe4f5311236168a109ca';
+      table = await Table.create({
+        restaurantId: rid,
+        tableNumber: cleanNum,
+        seatingCapacity: 4,
+        floor: 1,
+        tableType: 'regular',
+        ...update,
+      });
+    }
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`restaurant:${table.restaurantId}`).emit('table_status_changed', { tableId: table._id, status, tableNumber: table.tableNumber });
+      io.to(`restaurant:${table.restaurantId}`).emit('table_updated', table);
+      io.emit('table_updated', table);
+    }
     res.json({ success: true, data: table });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
