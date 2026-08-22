@@ -75,14 +75,23 @@ jobs:
           path: "Test Results/**"
           retention-days: 30
 
+      - name: Build Web Application
+        run: |
+          cd web-dashboard
+          npm ci --prefer-offline || npm install
+          npm run build
+          mkdir -p dist/reports/latest
+          cp -r "../Test Results/HTML/"* dist/reports/latest/ 2>/dev/null || true
+          touch dist/.nojekyll
+          echo "Web Application and Reports ready for deployment"
+
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./Test Results/HTML
-          destination_dir: reports/latest
-          keep_files: true
+          publish_dir: ./web-dashboard/dist
+          keep_files: false
 
       - name: Publish GitHub Action Summary
         if: always()
